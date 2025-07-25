@@ -93,9 +93,39 @@ def get_reviewer_assigned_paper(username):
 def next_paper_id():
     return len(st.session_state.papers) + 1
 
+# --------------------- SIDEBAR (logout and font settings) ---------------------
 st.sidebar.write(f"Logged in as: {st.session_state.name} ({st.session_state.role})")
 if st.sidebar.button("Logout"):
     logout()
+
+# --------------------- FONT SETTINGS SECTION ---------------------
+font_options = [
+    "Arial", "Georgia", "Times New Roman", "Courier New",
+    "Verdana", "Trebuchet MS", "Comic Sans MS", "Tahoma"
+]
+st.sidebar.markdown("### Font Settings")
+heading_font = st.sidebar.selectbox("Heading Font", font_options, index=0)
+subheading_font = st.sidebar.selectbox("Sub-heading Font", font_options, index=1)
+content_font = st.sidebar.selectbox("Content Font", font_options, index=2)
+
+st.session_state['heading_font'] = heading_font
+st.session_state['subheading_font'] = subheading_font
+st.session_state['content_font'] = content_font
+
+# Inject custom CSS for font selection
+st.markdown(f"""
+    <style>
+        .streamlit-expanderHeader, .stApp h1, .stApp h2, .stApp h3, .stApp h4 {{
+            font-family: '{st.session_state["heading_font"]}', sans-serif !important;
+        }}
+        .stApp h2, .stApp h3 {{
+            font-family: '{st.session_state["subheading_font"]}', sans-serif !important;
+        }}
+        .stApp p, .stApp li, .stApp div, .stApp span, .stApp textarea, .stApp label, .stApp input, .stApp textarea {{
+            font-family: '{st.session_state["content_font"]}', sans-serif !important;
+        }}
+    </style>
+""", unsafe_allow_html=True)
 
 # --------------------- ADMIN DASHBOARD ---------------------
 if st.session_state.role == "admin":
