@@ -57,7 +57,7 @@ def logout():
     st.session_state.username = ''
     st.session_state.role = ''
     st.session_state.name = ''
-    st.success("Logged out!")
+    st.success("Logged out!")  # No rerun here!
 
 if not st.session_state.logged_in:
     login()
@@ -96,7 +96,6 @@ def next_paper_id():
 st.sidebar.write(f"Logged in as: {st.session_state.name} ({st.session_state.role})")
 if st.sidebar.button("Logout"):
     logout()
-    st.experimental_rerun()
 
 # --------------------- ADMIN DASHBOARD ---------------------
 if st.session_state.role == "admin":
