@@ -154,7 +154,6 @@ def add_custom_table(n_rows, n_cols, attachments):
     attachments["tables"].append(html)
 
 def replace_placeholders_with_attachments(content_html, attachments):
-    # Replace {image1}, {table1}, etc.
     for idx, img_b64 in enumerate(attachments.get("images", [])):
         img_tag = f'<img src="data:image/png;base64,{img_b64}" style="max-width:100%;">'
         content_html = content_html.replace(f'{{image{idx+1}}}', img_tag)
@@ -181,7 +180,7 @@ if st.session_state.role == "admin":
             for idx, img_b64 in enumerate(attachments["images"]):
                 if f'{{image{idx+1}}}' not in paper['content']:
                     st.write(f"Unplaced Image {idx+1}:")
-                    st.image(base64.b64decode(img_b64))
+                    st.image(BytesIO(base64.b64decode(img_b64)), caption=f"image{idx+1}")
             for idx, table_html in enumerate(attachments["tables"]):
                 if f'{{table{idx+1}}}' not in paper['content']:
                     st.write(f"Unplaced Table {idx+1}:")
@@ -281,7 +280,7 @@ elif st.session_state.role == "faculty":
     if attachments["images"]:
         st.write("Attached Images:")
         for idx, img_b64 in enumerate(attachments["images"]):
-            st.image(base64.b64decode(img_b64), caption=f"image{idx+1}")
+            st.image(BytesIO(base64.b64decode(img_b64)), caption=f"image{idx+1}")
     if attachments["tables"]:
         st.write("Attached Tables:")
         for t_idx, table_html in enumerate(attachments["tables"]):
@@ -370,7 +369,7 @@ elif st.session_state.role == "reviewer":
             for idx, img_b64 in enumerate(attachments["images"]):
                 if f'{{image{idx+1}}}' not in paper['content']:
                     st.write(f"Unplaced Image {idx+1}:")
-                    st.image(base64.b64decode(img_b64))
+                    st.image(BytesIO(base64.b64decode(img_b64)), caption=f"image{idx+1}")
             for idx, table_html in enumerate(attachments["tables"]):
                 if f'{{table{idx+1}}}' not in paper['content']:
                     st.write(f"Unplaced Table {idx+1}:")
