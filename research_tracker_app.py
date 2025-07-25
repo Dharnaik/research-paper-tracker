@@ -2,11 +2,7 @@ import streamlit as st
 
 # --------------------- USERS ---------------------
 users = {
-    "admin": {
-        "password": "adminpass",
-        "role": "admin",
-        "name": "Admin"
-    },
+    "admin": {"password": "adminpass", "role": "admin", "name": "Admin"},
     "yuvaraj.bhirud": {"password": "pass1", "role": "faculty", "name": "Prof. Dr. Yuvaraj L. Bhirud"},
     "satish.patil": {"password": "pass2", "role": "faculty", "name": "Prof. Dr. Satish B. Patil"},
     "abhijeet.galatage": {"password": "pass3", "role": "faculty", "name": "Prof. Abhijeet A. Galatage"},
@@ -18,7 +14,6 @@ users = {
     "gauri.desai": {"password": "pass9", "role": "faculty", "name": "Prof. Gauri S. Desai"},
     "bhagyashri.patil": {"password": "pass10", "role": "faculty", "name": "Prof. Bhagyashri D. Patil"},
     "sagar.sonawane": {"password": "pass11", "role": "faculty", "name": "Prof. Sagar K. Sonawane"},
-    # Reviewers added at runtime
 }
 
 # --------------------- IN-MEMORY DATABASES ---------------------
@@ -48,7 +43,7 @@ def login():
             st.session_state.role = user["role"]
             st.session_state.name = user["name"]
             st.success(f"Welcome, {user['name']} ({user['role']})")
-            return  # Let Streamlit naturally rerun
+            return
         else:
             st.error("Invalid username or password.")
 
@@ -57,11 +52,63 @@ def logout():
     st.session_state.username = ''
     st.session_state.role = ''
     st.session_state.name = ''
-    st.success("Logged out!")  # No rerun here!
+    st.success("Logged out!")
 
 if not st.session_state.logged_in:
     login()
     st.stop()
+
+# --------------------- SIDEBAR (logout and font settings) ---------------------
+st.sidebar.write(f"Logged in as: {st.session_state.name} ({st.session_state.role})")
+if st.sidebar.button("Logout"):
+    logout()
+
+# --------------------- FONT SETTINGS SECTION ---------------------
+font_options = [
+    "Times New Roman", "Georgia", "Arial", "Verdana", "Trebuchet MS", "Courier New", "Tahoma"
+]
+
+# Journal default sizes (can change as needed)
+heading_size = st.sidebar.selectbox("Heading Font Size", [16, 18, 20], index=0)
+subheading_size = st.sidebar.selectbox("Sub-heading Font Size", [12, 14, 16], index=1)
+content_size = st.sidebar.selectbox("Content Font Size", [10, 11, 12, 13, 14], index=2)
+
+heading_font = st.sidebar.selectbox("Heading Font", font_options, index=0)
+subheading_font = st.sidebar.selectbox("Sub-heading Font", font_options, index=0)
+content_font = st.sidebar.selectbox("Content Font", font_options, index=0)
+
+st.session_state['heading_font'] = heading_font
+st.session_state['subheading_font'] = subheading_font
+st.session_state['content_font'] = content_font
+st.session_state['heading_size'] = heading_size
+st.session_state['subheading_size'] = subheading_size
+st.session_state['content_size'] = content_size
+
+# Custom CSS for journal paper styling
+st.markdown(f"""
+    <style>
+        .stApp h1 {{
+            font-family: '{st.session_state["heading_font"]}', serif !important;
+            font-size: {st.session_state["heading_size"]}pt !important;
+            font-weight: bold !important;
+            text-align: center;
+        }}
+        .stApp h2, .stApp h3 {{
+            font-family: '{st.session_state["subheading_font"]}', serif !important;
+            font-size: {st.session_state["subheading_size"]}pt !important;
+            font-weight: bold !important;
+        }}
+        .stApp p, .stApp li, .stApp div, .stApp span, .stApp label, .stApp input, .stApp textarea {{
+            font-family: '{st.session_state["content_font"]}', serif !important;
+            font-size: {st.session_state["content_size"]}pt !important;
+        }}
+        /* For Abstracts, optional: italic */
+        .abstract-text {{
+            font-style: italic !important;
+            font-size: {max(st.session_state["content_size"]-1,10)}pt !important;
+        }}
+    </style>
+""", unsafe_allow_html=True)
 
 # --------------------- COMMON UTILS ---------------------
 def get_paper_by_id(paper_id):
@@ -93,40 +140,6 @@ def get_reviewer_assigned_paper(username):
 def next_paper_id():
     return len(st.session_state.papers) + 1
 
-# --------------------- SIDEBAR (logout and font settings) ---------------------
-st.sidebar.write(f"Logged in as: {st.session_state.name} ({st.session_state.role})")
-if st.sidebar.button("Logout"):
-    logout()
-
-# --------------------- FONT SETTINGS SECTION ---------------------
-font_options = [
-    "Arial", "Georgia", "Times New Roman", "Courier New",
-    "Verdana", "Trebuchet MS", "Comic Sans MS", "Tahoma"
-]
-st.sidebar.markdown("### Font Settings")
-heading_font = st.sidebar.selectbox("Heading Font", font_options, index=0)
-subheading_font = st.sidebar.selectbox("Sub-heading Font", font_options, index=1)
-content_font = st.sidebar.selectbox("Content Font", font_options, index=2)
-
-st.session_state['heading_font'] = heading_font
-st.session_state['subheading_font'] = subheading_font
-st.session_state['content_font'] = content_font
-
-# Inject custom CSS for font selection
-st.markdown(f"""
-    <style>
-        .streamlit-expanderHeader, .stApp h1, .stApp h2, .stApp h3, .stApp h4 {{
-            font-family: '{st.session_state["heading_font"]}', sans-serif !important;
-        }}
-        .stApp h2, .stApp h3 {{
-            font-family: '{st.session_state["subheading_font"]}', sans-serif !important;
-        }}
-        .stApp p, .stApp li, .stApp div, .stApp span, .stApp textarea, .stApp label, .stApp input, .stApp textarea {{
-            font-family: '{st.session_state["content_font"]}', sans-serif !important;
-        }}
-    </style>
-""", unsafe_allow_html=True)
-
 # --------------------- ADMIN DASHBOARD ---------------------
 if st.session_state.role == "admin":
     st.title("Admin Dashboard")
@@ -136,7 +149,7 @@ if st.session_state.role == "admin":
         for paper in st.session_state.papers:
             st.markdown(f"**ID:** {paper['id']} | **Title:** {paper['title']} | **By:** {users[paper['faculty_username']]['name']}")
             st.write(f"Status: {paper['status']}")
-            st.write(f"Abstract: {paper['abstract']}")
+            st.markdown(f'<div class="abstract-text">Abstract: {paper["abstract"]}</div>', unsafe_allow_html=True)
             st.write(f"Content: {paper['content']}")
             st.write("---")
             # Show reviews for this paper
@@ -203,10 +216,15 @@ elif st.session_state.role == "faculty":
     for paper in papers:
         st.markdown(f"**ID:** {paper['id']} | **Title:** {paper['title']}")
         st.write(f"Status: {paper['status']}")
-        st.write(f"Abstract: {paper['abstract']}")
+        st.markdown(f'<div class="abstract-text">Abstract: {paper["abstract"]}</div>', unsafe_allow_html=True)
         st.write(f"Content: {paper['content']}")
         # Update status
-        new_status = st.selectbox(f"Update Status for Paper ID {paper['id']}", ["Draft", "In Progress", "Under Review", "Completed", "Submitted", "Accepted", "Rejected"], index=["Draft", "In Progress", "Under Review", "Completed", "Submitted", "Accepted", "Rejected"].index(paper['status']), key=f"status_{paper['id']}")
+        new_status = st.selectbox(
+            f"Update Status for Paper ID {paper['id']}",
+            ["Draft", "In Progress", "Under Review", "Completed", "Submitted", "Accepted", "Rejected"],
+            index=["Draft", "In Progress", "Under Review", "Completed", "Submitted", "Accepted", "Rejected"].index(paper['status']),
+            key=f"status_{paper['id']}"
+        )
         if new_status != paper['status']:
             paper['status'] = new_status
             st.success(f"Status updated to {new_status}")
@@ -230,7 +248,7 @@ elif st.session_state.role == "reviewer":
             st.write(f"**Paper Assigned:** (ID: {paper['id']})")
             st.write(f"Title: {paper['title']}")
             st.write(f"By: {users[paper['faculty_username']]['name']}")
-            st.write(f"Abstract: {paper['abstract']}")
+            st.markdown(f'<div class="abstract-text">Abstract: {paper["abstract"]}</div>', unsafe_allow_html=True)
             st.write(f"Content: {paper['content']}")
             # Submit review
             st.subheader("Submit Your Review")
