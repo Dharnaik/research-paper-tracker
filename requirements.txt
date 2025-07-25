@@ -2,3 +2,4 @@ streamlit
 sqlalchemy
 openai
 streamlit-quill
+beautifulsoup4
