@@ -1,5 +1,7 @@
 import streamlit as st
 from streamlit_quill import st_quill
+import pandas as pd
+from io import BytesIO
 
 # --------------------- USERS ---------------------
 users = {
@@ -19,11 +21,20 @@ users = {
 
 # --------------------- IN-MEMORY DATABASES ---------------------
 if 'papers' not in st.session_state:
-    st.session_state.papers = []  # Each paper is a dict
+    st.session_state.papers = []
 if 'reviews' not in st.session_state:
-    st.session_state.reviews = []  # Each review is a dict
+    st.session_state.reviews = []
 if 'reviewers' not in st.session_state:
-    st.session_state.reviewers = {}  # reviewer_username -> {assigned_paper_id}
+    st.session_state.reviewers = {}
+
+# ---- Attachments storage per paper ----
+if "paper_attachments" not in st.session_state:
+    st.session_state.paper_attachments = {}  # {paper_id: {"images": [], "tables": []}}
+
+def get_attachment_dict(paper_id):
+    if paper_id not in st.session_state.paper_attachments:
+        st.session_state.paper_attachments[paper_id] = {"images": [], "tables": []}
+    return st.session_state.paper_attachments[paper_id]
 
 # --------------------- AUTH LOGIC ---------------------
 if 'logged_in' not in st.session_state:
@@ -133,6 +144,17 @@ if st.session_state.role == "admin":
             st.write(f"Status: {paper['status']}")
             st.markdown(f'<div class="abstract-text">Abstract: {paper["abstract"]}</div>', unsafe_allow_html=True)
             st.markdown(paper['content'], unsafe_allow_html=True)
+            # --- Show attachments below content ---
+            attachments = get_attachment_dict(paper['id'])
+            if attachments["images"]:
+                st.write("Images:")
+                for img in attachments["images"]:
+                    st.image(img)
+            if attachments["tables"]:
+                st.write("Tables:")
+                for t in attachments["tables"]:
+                    df = pd.read_csv(BytesIO(t))
+                    st.dataframe(df)
             st.write("---")
             reviews = get_reviews_for_paper(paper['id'])
             if reviews:
@@ -175,7 +197,6 @@ elif st.session_state.role == "faculty":
     if 'edit_paper_id' not in st.session_state:
         st.session_state.edit_paper_id = None  # None means new paper
 
-    # --- List Existing Papers ---
     papers = get_papers_for_faculty(st.session_state.username)
     st.subheader("My Papers")
     for paper in papers:
@@ -188,12 +209,65 @@ elif st.session_state.role == "faculty":
         with col3:
             if st.button("Delete", key=f"delete_{paper['id']}"):
                 st.session_state.papers = [p for p in st.session_state.papers if p['id'] != paper['id']]
+                if paper['id'] in st.session_state.paper_attachments:
+                    del st.session_state.paper_attachments[paper['id']]
                 st.experimental_rerun()
         st.markdown("---")
 
     # --- Button for New Paper ---
     if st.button("Start New Paper"):
         st.session_state.edit_paper_id = None  # Switch to new paper form
+
+    # --- Attachments UI (images, excel tables/graphs, custom tables) ---
+    st.subheader("Attach to This Paper")
+    if st.session_state.edit_paper_id is not None:
+        working_paper_id = st.session_state.edit_paper_id
+    else:
+        working_paper_id = -1  # placeholder for new paper
+    attachments = get_attachment_dict(working_paper_id)
+
+    # 1. Upload Images
+    uploaded_images = st.file_uploader("Upload Image(s)", type=["png", "jpg", "jpeg"], accept_multiple_files=True, key=f"img_{working_paper_id}")
+    if uploaded_images:
+        # Only append new ones not already added
+        for img in uploaded_images:
+            if img not in attachments["images"]:
+                attachments["images"].append(img)
+
+    # 2. Upload Excel for Table/Graph
+    uploaded_excel = st.file_uploader("Upload Excel for Table/Graph", type=["xls", "xlsx"], key=f"excel_{working_paper_id}")
+    if uploaded_excel:
+        df = pd.read_excel(uploaded_excel)
+        st.write("Excel Data Table Preview:")
+        st.dataframe(df)
+        st.write("Quick Bar Graph:")
+        st.bar_chart(df.select_dtypes(include=['number']))
+        buf = BytesIO()
+        df.to_csv(buf, index=False)
+        attachments["tables"].append(buf.getvalue())
+
+    # 3. Create Table
+    st.write("Or create a custom table:")
+    n_rows = st.number_input("Rows", min_value=1, max_value=10, value=2, key=f"create_table_rows_{working_paper_id}")
+    n_cols = st.number_input("Columns", min_value=1, max_value=10, value=2, key=f"create_table_cols_{working_paper_id}")
+    if st.button("Create Table", key=f"create_table_{working_paper_id}"):
+        new_table = pd.DataFrame([[""]*int(n_cols) for _ in range(int(n_rows))],
+                                 columns=[f"Col{i+1}" for i in range(int(n_cols))])
+        attachments["tables"].append(new_table.to_csv(index=False).encode())
+        st.success("Table created and attached!")
+
+    # Show current attachments for this paper (previews)
+    st.markdown("---")
+    if attachments["images"]:
+        st.write("Attached Images:")
+        for img in attachments["images"]:
+            st.image(img)
+    if attachments["tables"]:
+        st.write("Attached Tables:")
+        for t_idx, t in enumerate(attachments["tables"]):
+            df = pd.read_csv(BytesIO(t))
+            st.dataframe(df)
+    st.markdown("---")
 
     # --- Paper Form (for new or editing existing) ---
     st.subheader("Write Paper")
@@ -222,13 +296,18 @@ elif st.session_state.role == "faculty":
                         p['title'] = title
                         p['abstract'] = abstract
                         p['content'] = content
+                        # Move attachments from -1 to this paper id if any
+                        if -1 in st.session_state.paper_attachments and not st.session_state.paper_attachments[p['id']]["images"] and not st.session_state.paper_attachments[p['id']]["tables"]:
+                            st.session_state.paper_attachments[p['id']] = st.session_state.paper_attachments[-1]
+                            del st.session_state.paper_attachments[-1]
                         st.success("Paper updated!")
                         break
                 st.session_state.edit_paper_id = None
             else:
                 # New paper
+                new_paper_id = next_paper_id()
                 new_paper = {
-                    "id": next_paper_id(),
+                    "id": new_paper_id,
                     "faculty_username": st.session_state.username,
                     "title": title,
                     "abstract": abstract,
@@ -236,6 +315,10 @@ elif st.session_state.role == "faculty":
                     "status": "Draft"
                 }
                 st.session_state.papers.append(new_paper)
+                # Move attachments from -1 to new paper id
+                if -1 in st.session_state.paper_attachments:
+                    st.session_state.paper_attachments[new_paper_id] = st.session_state.paper_attachments[-1]
+                    del st.session_state.paper_attachments[-1]
                 st.success(f"Paper '{title}' submitted!")
             st.experimental_rerun()
 
@@ -266,6 +349,16 @@ elif st.session_state.role == "reviewer":
             st.write(f"By: {users[paper['faculty_username']]['name']}")
             st.markdown(f'<div class="abstract-text">Abstract: {paper["abstract"]}</div>', unsafe_allow_html=True)
             st.markdown(paper['content'], unsafe_allow_html=True)
+            attachments = get_attachment_dict(paper['id'])
+            if attachments["images"]:
+                st.write("Images:")
+                for img in attachments["images"]:
+                    st.image(img)
+            if attachments["tables"]:
+                st.write("Tables:")
+                for t in attachments["tables"]:
+                    df = pd.read_csv(BytesIO(t))
+                    st.dataframe(df)
             st.subheader("Submit Your Review")
             suggestions = st.text_area("Suggestions and Comments")
             overall_comment = st.text_area("Overall Comment")
