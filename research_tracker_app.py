@@ -15,7 +15,6 @@ users = {
     "gauri.desai": {"password": "pass9", "role": "faculty", "name": "Prof. Gauri S. Desai"},
     "bhagyashri.patil": {"password": "pass10", "role": "faculty", "name": "Prof. Bhagyashri D. Patil"},
     "sagar.sonawane": {"password": "pass11", "role": "faculty", "name": "Prof. Sagar K. Sonawane"},
-    # Reviewers added at runtime
 }
 
 # --------------------- IN-MEMORY DATABASES ---------------------
@@ -139,7 +138,10 @@ def get_reviewer_assigned_paper(username):
     return None
 
 def next_paper_id():
-    return len(st.session_state.papers) + 1
+    if st.session_state.papers:
+        return max(p['id'] for p in st.session_state.papers) + 1
+    else:
+        return 1
 
 # --------------------- ADMIN DASHBOARD ---------------------
 if st.session_state.role == "admin":
@@ -151,7 +153,6 @@ if st.session_state.role == "admin":
             st.markdown(f"**ID:** {paper['id']} | **Title:** {paper['title']} | **By:** {users[paper['faculty_username']]['name']}")
             st.write(f"Status: {paper['status']}")
             st.markdown(f'<div class="abstract-text">Abstract: {paper["abstract"]}</div>', unsafe_allow_html=True)
-            # Show the paper content as rich HTML (from Quill)
             st.markdown(paper['content'], unsafe_allow_html=True)
             st.write("---")
             reviews = get_reviews_for_paper(paper['id'])
@@ -191,50 +192,87 @@ elif st.session_state.role == "faculty":
     st.title("Faculty Dashboard")
     st.write(f"Welcome, {st.session_state.name}")
 
-    # Submit a new paper
-    st.subheader("Submit New Paper")
-    with st.form("paper_form", clear_on_submit=True):
+    # --- Manage which paper is being edited/created ---
+    if 'edit_paper_id' not in st.session_state:
+        st.session_state.edit_paper_id = None  # None means new paper
+
+    # --- List Existing Papers ---
+    papers = get_papers_for_faculty(st.session_state.username)
+    st.subheader("My Papers")
+    for paper in papers:
+        col1, col2, col3 = st.columns([6,2,2])
+        with col1:
+            st.markdown(f"**ID:** {paper['id']} | **Title:** {paper['title']} | Status: {paper['status']}")
+        with col2:
+            if st.button("Edit", key=f"edit_{paper['id']}"):
+                st.session_state.edit_paper_id = paper['id']
+        with col3:
+            if st.button("Delete", key=f"delete_{paper['id']}"):
+                st.session_state.papers = [p for p in st.session_state.papers if p['id'] != paper['id']]
+                st.experimental_rerun()
+        st.markdown("---")
+
+    # --- Button for New Paper ---
+    if st.button("Start New Paper"):
+        st.session_state.edit_paper_id = None  # Switch to new paper form
+
+    # --- Paper Form (for new or editing existing) ---
+    st.subheader("Write Paper")
+    if st.session_state.edit_paper_id is not None:
+        # Editing an existing paper
+        paper = next(p for p in papers if p['id'] == st.session_state.edit_paper_id)
+        title = st.text_input("Paper Title", value=paper['title'])
+        abstract = st.text_area("Abstract", value=paper['abstract'])
+        content = st_quill(key=f"content_quill_edit_{paper['id']}", value=paper['content'], html=True)
+        submit_label = "Update Paper"
+    else:
+        # New paper
         title = st.text_input("Paper Title")
         abstract = st.text_area("Abstract")
-        st.markdown("### Content (Rich Text Editor)")
-        content = st_quill(key="content_quill", html=True)
-        submit_paper = st.form_submit_button("Submit Paper")
-        if submit_paper:
-            paper = {
-                "id": next_paper_id(),
-                "faculty_username": st.session_state.username,
-                "title": title,
-                "abstract": abstract,
-                "content": content,
-                "status": "Draft"
-            }
-            st.session_state.papers.append(paper)
-            st.success(f"Paper '{title}' submitted!")
+        content = st_quill(key="content_quill_new", html=True)
+        submit_label = "Submit Paper"
 
-    # Show papers by this faculty
-    st.subheader("My Papers")
-    papers = get_papers_for_faculty(st.session_state.username)
+    if st.button(submit_label):
+        if not title or not content:
+            st.warning("Title and content required.")
+        else:
+            if st.session_state.edit_paper_id is not None:
+                # Update existing paper
+                for p in st.session_state.papers:
+                    if p['id'] == st.session_state.edit_paper_id:
+                        p['title'] = title
+                        p['abstract'] = abstract
+                        p['content'] = content
+                        st.success("Paper updated!")
+                        break
+                st.session_state.edit_paper_id = None
+            else:
+                # New paper
+                new_paper = {
+                    "id": next_paper_id(),
+                    "faculty_username": st.session_state.username,
+                    "title": title,
+                    "abstract": abstract,
+                    "content": content,
+                    "status": "Draft"
+                }
+                st.session_state.papers.append(new_paper)
+                st.success(f"Paper '{title}' submitted!")
+            st.experimental_rerun()
+
+    # --- Option to cancel editing ---
+    if st.session_state.edit_paper_id is not None:
+        if st.button("Cancel Editing"):
+            st.session_state.edit_paper_id = None
+            st.experimental_rerun()
+
+    # --- Show reviews for each paper ---
     for paper in papers:
-        st.markdown(f"**ID:** {paper['id']} | **Title:** {paper['title']}")
-        st.write(f"Status: {paper['status']}")
-        st.markdown(f'<div class="abstract-text">Abstract: {paper["abstract"]}</div>', unsafe_allow_html=True)
-        st.markdown(paper['content'], unsafe_allow_html=True)
-        new_status = st.selectbox(
-            f"Update Status for Paper ID {paper['id']}",
-            ["Draft", "In Progress", "Under Review", "Completed", "Submitted", "Accepted", "Rejected"],
-            index=["Draft", "In Progress", "Under Review", "Completed", "Submitted", "Accepted", "Rejected"].index(paper['status']),
-            key=f"status_{paper['id']}"
-        )
-        if new_status != paper['status']:
-            paper['status'] = new_status
-            st.success(f"Status updated to {new_status}")
         reviews = get_reviews_for_paper(paper['id'])
         if reviews:
-            st.write("**Reviews for this paper:**")
+            st.write(f"**Reviews for Paper ID {paper['id']} - {paper['title']}:**")
             for r in reviews:
                 st.info(f"Reviewer: {r['reviewer']}\n\nSuggestions: {r['suggestions']}\n\nOverall: {r['overall_comment']}")
-        else:
-            st.write("_No reviews yet._")
         st.write("===")
 
 # --------------------- REVIEWER DASHBOARD ---------------------
