@@ -1,11 +1,10 @@
 import streamlit as st
 from streamlit_quill import st_quill
 import pandas as pd
-from io import BytesIO
 import base64
-from bs4 import BeautifulSoup
+from io import BytesIO
 
-# --------------------- USERS ---------------------
+# --- USERS ---
 users = {
     "admin": {"password": "adminpass", "role": "admin", "name": "Admin"},
     "yuvaraj.bhirud": {"password": "pass1", "role": "faculty", "name": "Prof. Dr. Yuvaraj L. Bhirud"},
@@ -21,7 +20,7 @@ users = {
     "sagar.sonawane": {"password": "pass11", "role": "faculty", "name": "Prof. Sagar K. Sonawane"},
 }
 
-# --------------------- IN-MEMORY DATABASES ---------------------
+# --- IN-MEMORY DATABASES ---
 if 'papers' not in st.session_state:
     st.session_state.papers = []
 if 'reviews' not in st.session_state:
@@ -29,14 +28,9 @@ if 'reviews' not in st.session_state:
 if 'reviewers' not in st.session_state:
     st.session_state.reviewers = {}
 if "paper_attachments" not in st.session_state:
-    st.session_state.paper_attachments = {}  # {paper_id: {"images": [], "tables": []}}
+    st.session_state.paper_attachments = {}
 
-def get_attachment_dict(paper_id):
-    if paper_id not in st.session_state.paper_attachments:
-        st.session_state.paper_attachments[paper_id] = {"images": [], "tables": []}
-    return st.session_state.paper_attachments[paper_id]
-
-# --------------------- AUTH LOGIC ---------------------
+# --- AUTH LOGIC ---
 if 'logged_in' not in st.session_state:
     st.session_state.logged_in = False
     st.session_state.username = ''
@@ -70,12 +64,12 @@ if not st.session_state.logged_in:
     login()
     st.stop()
 
-# --------------------- SIDEBAR (only user info and logout) ---------------------
+# --- SIDEBAR ---
 st.sidebar.write(f"Logged in as: {st.session_state.name} ({st.session_state.role})")
 if st.sidebar.button("Logout"):
     logout()
 
-# --------------------- FIXED FONT/SIZE STYLING ---------------------
+# --- FIXED FONT/SIZE STYLING ---
 st.markdown("""
     <style>
         .stApp h1 {
@@ -100,7 +94,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --------------------- UTILS ---------------------
+# --- UTILS ---
 def get_paper_by_id(paper_id):
     for p in st.session_state.papers:
         if p['id'] == paper_id:
@@ -133,29 +127,44 @@ def next_paper_id():
     else:
         return 1
 
-def img_to_b64(img_file):
-    img_file.seek(0)
-    return base64.b64encode(img_file.read()).decode()
+def get_attachment_dict(paper_id):
+    if paper_id not in st.session_state.paper_attachments:
+        st.session_state.paper_attachments[paper_id] = {"images": [], "tables": []}
+    return st.session_state.paper_attachments[paper_id]
+
+def add_uploaded_images(uploaded_images, attachments):
+    for img in uploaded_images:
+        img.seek(0)
+        img_bytes = img.read()
+        img_b64 = base64.b64encode(img_bytes).decode()
+        if img_b64 not in attachments["images"]:
+            attachments["images"].append(img_b64)
+
+def add_uploaded_table_from_excel(uploaded_excel, attachments):
+    df = pd.read_excel(uploaded_excel)
+    html = df.to_html(index=False, border=1)
+    if html not in attachments["tables"]:
+        attachments["tables"].append(html)
+    return df
+
+def add_custom_table(n_rows, n_cols, attachments):
+    df = pd.DataFrame([[""] * n_cols for _ in range(n_rows)],
+                      columns=[f"Col{i+1}" for i in range(n_cols)])
+    html = df.to_html(index=False, border=1)
+    attachments["tables"].append(html)
 
 def replace_placeholders_with_attachments(content_html, attachments):
-    # Use BeautifulSoup to help insert images/tables after parsing HTML
-    soup = BeautifulSoup(content_html, 'html.parser')
-    str_html = str(soup)
-    # Replace {image1}, {image2}, etc.
-    for idx, img in enumerate(attachments.get("images", [])):
-        img_tag = f'<img src="data:image/png;base64,{img_to_b64(img)}" style="max-width:100%;">'
-        str_html = str_html.replace(f'{{image{idx+1}}}', img_tag)
-    # Replace {table1}, {table2}, etc.
-    for idx, t in enumerate(attachments.get("tables", [])):
-        df = pd.read_csv(BytesIO(t))
-        table_html = df.to_html(index=False, border=1)
-        str_html = str_html.replace(f'{{table{idx+1}}}', table_html)
-    return str_html
+    # Replace {image1}, {table1}, etc.
+    for idx, img_b64 in enumerate(attachments.get("images", [])):
+        img_tag = f'<img src="data:image/png;base64,{img_b64}" style="max-width:100%;">'
+        content_html = content_html.replace(f'{{image{idx+1}}}', img_tag)
+    for idx, table_html in enumerate(attachments.get("tables", [])):
+        content_html = content_html.replace(f'{{table{idx+1}}}', table_html)
+    return content_html
 
-# --------------------- ADMIN DASHBOARD ---------------------
+# --- ADMIN DASHBOARD ---
 if st.session_state.role == "admin":
     st.title("Admin Dashboard")
-
     st.subheader("All Papers")
     if st.session_state.papers:
         for paper in st.session_state.papers:
@@ -165,20 +174,18 @@ if st.session_state.role == "admin":
             attachments = get_attachment_dict(paper['id'])
             display_html = replace_placeholders_with_attachments(paper['content'], attachments)
             st.markdown(display_html, unsafe_allow_html=True)
-            # Show any unattached images/tables
             left_imgs = len([t for t in range(len(attachments["images"])) if f'{{image{t+1}}}' not in paper['content']])
             left_tbls = len([t for t in range(len(attachments["tables"])) if f'{{table{t+1}}}' not in paper['content']])
             if left_imgs or left_tbls:
                 st.markdown("---")
-            for idx, img in enumerate(attachments["images"]):
+            for idx, img_b64 in enumerate(attachments["images"]):
                 if f'{{image{idx+1}}}' not in paper['content']:
                     st.write(f"Unplaced Image {idx+1}:")
-                    st.image(img)
-            for idx, t in enumerate(attachments["tables"]):
+                    st.image(base64.b64decode(img_b64))
+            for idx, table_html in enumerate(attachments["tables"]):
                 if f'{{table{idx+1}}}' not in paper['content']:
                     st.write(f"Unplaced Table {idx+1}:")
-                    df = pd.read_csv(BytesIO(t))
-                    st.dataframe(df)
+                    st.markdown(table_html, unsafe_allow_html=True)
             st.write("---")
             reviews = get_reviews_for_paper(paper['id'])
             if reviews:
@@ -212,12 +219,11 @@ if st.session_state.role == "admin":
             }
             st.success(f"Reviewer '{reviewer_username}' created and assigned to paper ID {assigned_paper_id}.")
 
-# --------------------- FACULTY DASHBOARD ---------------------
+# --- FACULTY DASHBOARD ---
 elif st.session_state.role == "faculty":
     st.title("Faculty Dashboard")
     st.write(f"Welcome, {st.session_state.name}")
 
-    # --- Manage which paper is being edited/created ---
     if 'edit_paper_id' not in st.session_state:
         st.session_state.edit_paper_id = None
 
@@ -241,55 +247,45 @@ elif st.session_state.role == "faculty":
     if st.button("Start New Paper"):
         st.session_state.edit_paper_id = None
 
-    # ---------- Attachments UI ----------
+    # --- Attachments UI ---
     st.subheader("Attach to This Paper")
     if st.session_state.edit_paper_id is not None:
         working_paper_id = st.session_state.edit_paper_id
     else:
         working_paper_id = -1
     attachments = get_attachment_dict(working_paper_id)
+    st.info("To insert an image or table in your content, use tags like `{image1}`, `{table1}` at the desired place in your text below.")
 
-    st.info("To insert an image or table in your content, use tags like `{image1}`, `{image2}`, `{table1}`, `{table2}` at the desired place in your text below. (E.g.: 'See {image1} for details.')")
-
-    # 1. Upload Images
+    # Images
     uploaded_images = st.file_uploader("Upload Image(s)", type=["png", "jpg", "jpeg"], accept_multiple_files=True, key=f"img_{working_paper_id}")
     if uploaded_images:
-        for img in uploaded_images:
-            if img not in attachments["images"]:
-                attachments["images"].append(img)
+        add_uploaded_images(uploaded_images, attachments)
 
-    # 2. Upload Excel for Table/Graph
+    # Excel table
     uploaded_excel = st.file_uploader("Upload Excel for Table/Graph", type=["xls", "xlsx"], key=f"excel_{working_paper_id}")
     if uploaded_excel:
-        df = pd.read_excel(uploaded_excel)
+        df = add_uploaded_table_from_excel(uploaded_excel, attachments)
         st.write("Excel Data Table Preview:")
         st.dataframe(df)
         st.write("Quick Bar Graph:")
         st.bar_chart(df.select_dtypes(include=['number']))
-        buf = BytesIO()
-        df.to_csv(buf, index=False)
-        attachments["tables"].append(buf.getvalue())
 
-    # 3. Create Table
-    st.write("Or create a custom table:")
+    # Create custom table
     n_rows = st.number_input("Rows", min_value=1, max_value=10, value=2, key=f"create_table_rows_{working_paper_id}")
     n_cols = st.number_input("Columns", min_value=1, max_value=10, value=2, key=f"create_table_cols_{working_paper_id}")
     if st.button("Create Table", key=f"create_table_{working_paper_id}"):
-        new_table = pd.DataFrame([[""]*int(n_cols) for _ in range(int(n_rows))],
-                                 columns=[f"Col{i+1}" for i in range(int(n_cols))])
-        attachments["tables"].append(new_table.to_csv(index=False).encode())
+        add_custom_table(int(n_rows), int(n_cols), attachments)
         st.success("Table created and attached!")
 
     st.markdown("---")
     if attachments["images"]:
         st.write("Attached Images:")
-        for idx, img in enumerate(attachments["images"]):
-            st.image(img, caption=f"image{idx+1}")
+        for idx, img_b64 in enumerate(attachments["images"]):
+            st.image(base64.b64decode(img_b64), caption=f"image{idx+1}")
     if attachments["tables"]:
         st.write("Attached Tables:")
-        for t_idx, t in enumerate(attachments["tables"]):
-            df = pd.read_csv(BytesIO(t))
-            st.dataframe(df)
+        for t_idx, table_html in enumerate(attachments["tables"]):
+            st.markdown(table_html, unsafe_allow_html=True)
     st.markdown("---")
 
     # --- Paper Form (for new or editing existing) ---
@@ -353,7 +349,7 @@ elif st.session_state.role == "faculty":
                 st.info(f"Reviewer: {r['reviewer']}\n\nSuggestions: {r['suggestions']}\n\nOverall: {r['overall_comment']}")
         st.write("===")
 
-# --------------------- REVIEWER DASHBOARD ---------------------
+# --- REVIEWER DASHBOARD ---
 elif st.session_state.role == "reviewer":
     st.title("Reviewer Dashboard")
     assigned_paper_id = get_reviewer_assigned_paper(st.session_state.username)
@@ -371,15 +367,14 @@ elif st.session_state.role == "reviewer":
             left_tbls = len([t for t in range(len(attachments["tables"])) if f'{{table{t+1}}}' not in paper['content']])
             if left_imgs or left_tbls:
                 st.markdown("---")
-            for idx, img in enumerate(attachments["images"]):
+            for idx, img_b64 in enumerate(attachments["images"]):
                 if f'{{image{idx+1}}}' not in paper['content']:
                     st.write(f"Unplaced Image {idx+1}:")
-                    st.image(img)
-            for idx, t in enumerate(attachments["tables"]):
+                    st.image(base64.b64decode(img_b64))
+            for idx, table_html in enumerate(attachments["tables"]):
                 if f'{{table{idx+1}}}' not in paper['content']:
                     st.write(f"Unplaced Table {idx+1}:")
-                    df = pd.read_csv(BytesIO(t))
-                    st.dataframe(df)
+                    st.markdown(table_html, unsafe_allow_html=True)
             st.subheader("Submit Your Review")
             suggestions = st.text_area("Suggestions and Comments")
             overall_comment = st.text_area("Overall Comment")
