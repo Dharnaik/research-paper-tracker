@@ -34,6 +34,7 @@ if 'logged_in' not in st.session_state:
     st.session_state.logged_in = False
     st.session_state.username = ''
     st.session_state.role = ''
+    st.session_state.name = ''
 
 def login():
     st.title("Faculty Research Paper Portal - Login")
@@ -47,7 +48,7 @@ def login():
             st.session_state.role = user["role"]
             st.session_state.name = user["name"]
             st.success(f"Welcome, {user['name']} ({user['role']})")
-            st.experimental_rerun()
+            return  # Let Streamlit naturally rerun
         else:
             st.error("Invalid username or password.")
 
@@ -57,7 +58,6 @@ def logout():
     st.session_state.role = ''
     st.session_state.name = ''
     st.success("Logged out!")
-    st.experimental_rerun()
 
 if not st.session_state.logged_in:
     login()
@@ -96,6 +96,7 @@ def next_paper_id():
 st.sidebar.write(f"Logged in as: {st.session_state.name} ({st.session_state.role})")
 if st.sidebar.button("Logout"):
     logout()
+    st.experimental_rerun()
 
 # --------------------- ADMIN DASHBOARD ---------------------
 if st.session_state.role == "admin":
@@ -213,5 +214,3 @@ elif st.session_state.role == "reviewer":
             st.error("Assigned paper not found.")
     else:
         st.info("No paper assigned.")
-
-# --------------------- END ---------------------
