@@ -1,4 +1,5 @@
 import streamlit as st
+from streamlit_quill import st_quill
 
 # --------------------- USERS ---------------------
 users = {
@@ -14,6 +15,7 @@ users = {
     "gauri.desai": {"password": "pass9", "role": "faculty", "name": "Prof. Gauri S. Desai"},
     "bhagyashri.patil": {"password": "pass10", "role": "faculty", "name": "Prof. Bhagyashri D. Patil"},
     "sagar.sonawane": {"password": "pass11", "role": "faculty", "name": "Prof. Sagar K. Sonawane"},
+    # Reviewers added at runtime
 }
 
 # --------------------- IN-MEMORY DATABASES ---------------------
@@ -68,7 +70,6 @@ font_options = [
     "Times New Roman", "Georgia", "Arial", "Verdana", "Trebuchet MS", "Courier New", "Tahoma"
 ]
 
-# Journal default sizes (can change as needed)
 heading_size = st.sidebar.selectbox("Heading Font Size", [16, 18, 20], index=0)
 subheading_size = st.sidebar.selectbox("Sub-heading Font Size", [12, 14, 16], index=1)
 content_size = st.sidebar.selectbox("Content Font Size", [10, 11, 12, 13, 14], index=2)
@@ -150,9 +151,9 @@ if st.session_state.role == "admin":
             st.markdown(f"**ID:** {paper['id']} | **Title:** {paper['title']} | **By:** {users[paper['faculty_username']]['name']}")
             st.write(f"Status: {paper['status']}")
             st.markdown(f'<div class="abstract-text">Abstract: {paper["abstract"]}</div>', unsafe_allow_html=True)
-            st.write(f"Content: {paper['content']}")
+            # Show the paper content as rich HTML (from Quill)
+            st.markdown(paper['content'], unsafe_allow_html=True)
             st.write("---")
-            # Show reviews for this paper
             reviews = get_reviews_for_paper(paper['id'])
             if reviews:
                 st.write("**Reviews:**")
@@ -175,7 +176,6 @@ if st.session_state.role == "admin":
         elif reviewer_username in users or reviewer_username in st.session_state.reviewers:
             st.warning("Reviewer username already exists.")
         else:
-            # Create reviewer
             users[reviewer_username] = {
                 "password": reviewer_password,
                 "role": "reviewer",
@@ -196,7 +196,8 @@ elif st.session_state.role == "faculty":
     with st.form("paper_form", clear_on_submit=True):
         title = st.text_input("Paper Title")
         abstract = st.text_area("Abstract")
-        content = st.text_area("Content", height=200)
+        st.markdown("### Content (Rich Text Editor)")
+        content = st_quill(key="content_quill", html=True)
         submit_paper = st.form_submit_button("Submit Paper")
         if submit_paper:
             paper = {
@@ -217,8 +218,7 @@ elif st.session_state.role == "faculty":
         st.markdown(f"**ID:** {paper['id']} | **Title:** {paper['title']}")
         st.write(f"Status: {paper['status']}")
         st.markdown(f'<div class="abstract-text">Abstract: {paper["abstract"]}</div>', unsafe_allow_html=True)
-        st.write(f"Content: {paper['content']}")
-        # Update status
+        st.markdown(paper['content'], unsafe_allow_html=True)
         new_status = st.selectbox(
             f"Update Status for Paper ID {paper['id']}",
             ["Draft", "In Progress", "Under Review", "Completed", "Submitted", "Accepted", "Rejected"],
@@ -228,7 +228,6 @@ elif st.session_state.role == "faculty":
         if new_status != paper['status']:
             paper['status'] = new_status
             st.success(f"Status updated to {new_status}")
-        # Show reviews
         reviews = get_reviews_for_paper(paper['id'])
         if reviews:
             st.write("**Reviews for this paper:**")
@@ -249,8 +248,7 @@ elif st.session_state.role == "reviewer":
             st.write(f"Title: {paper['title']}")
             st.write(f"By: {users[paper['faculty_username']]['name']}")
             st.markdown(f'<div class="abstract-text">Abstract: {paper["abstract"]}</div>', unsafe_allow_html=True)
-            st.write(f"Content: {paper['content']}")
-            # Submit review
+            st.markdown(paper['content'], unsafe_allow_html=True)
             st.subheader("Submit Your Review")
             suggestions = st.text_area("Suggestions and Comments")
             overall_comment = st.text_area("Overall Comment")
