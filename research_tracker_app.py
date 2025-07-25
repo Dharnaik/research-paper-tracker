@@ -59,54 +59,33 @@ if not st.session_state.logged_in:
     login()
     st.stop()
 
-# --------------------- SIDEBAR (logout and font settings) ---------------------
+# --------------------- SIDEBAR (only user info and logout) ---------------------
 st.sidebar.write(f"Logged in as: {st.session_state.name} ({st.session_state.role})")
 if st.sidebar.button("Logout"):
     logout()
 
-# --------------------- FONT SETTINGS SECTION ---------------------
-font_options = [
-    "Times New Roman", "Georgia", "Arial", "Verdana", "Trebuchet MS", "Courier New", "Tahoma"
-]
-
-heading_size = st.sidebar.selectbox("Heading Font Size", [16, 18, 20], index=0)
-subheading_size = st.sidebar.selectbox("Sub-heading Font Size", [12, 14, 16], index=1)
-content_size = st.sidebar.selectbox("Content Font Size", [10, 11, 12, 13, 14], index=2)
-
-heading_font = st.sidebar.selectbox("Heading Font", font_options, index=0)
-subheading_font = st.sidebar.selectbox("Sub-heading Font", font_options, index=0)
-content_font = st.sidebar.selectbox("Content Font", font_options, index=0)
-
-st.session_state['heading_font'] = heading_font
-st.session_state['subheading_font'] = subheading_font
-st.session_state['content_font'] = content_font
-st.session_state['heading_size'] = heading_size
-st.session_state['subheading_size'] = subheading_size
-st.session_state['content_size'] = content_size
-
-# Custom CSS for journal paper styling
-st.markdown(f"""
+# --------------------- FIXED FONT/SIZE STYLING ---------------------
+st.markdown("""
     <style>
-        .stApp h1 {{
-            font-family: '{st.session_state["heading_font"]}', serif !important;
-            font-size: {st.session_state["heading_size"]}pt !important;
+        .stApp h1 {
+            font-family: 'Times New Roman', serif !important;
+            font-size: 18pt !important;
             font-weight: bold !important;
             text-align: center;
-        }}
-        .stApp h2, .stApp h3 {{
-            font-family: '{st.session_state["subheading_font"]}', serif !important;
-            font-size: {st.session_state["subheading_size"]}pt !important;
+        }
+        .stApp h2, .stApp h3 {
+            font-family: 'Times New Roman', serif !important;
+            font-size: 14pt !important;
             font-weight: bold !important;
-        }}
-        .stApp p, .stApp li, .stApp div, .stApp span, .stApp label, .stApp input, .stApp textarea {{
-            font-family: '{st.session_state["content_font"]}', serif !important;
-            font-size: {st.session_state["content_size"]}pt !important;
-        }}
-        /* For Abstracts, optional: italic */
-        .abstract-text {{
+        }
+        .stApp p, .stApp li, .stApp div, .stApp span, .stApp label, .stApp input, .stApp textarea {
+            font-family: 'Times New Roman', serif !important;
+            font-size: 12pt !important;
+        }
+        .abstract-text {
             font-style: italic !important;
-            font-size: {max(st.session_state["content_size"]-1,10)}pt !important;
-        }}
+            font-size: 11pt !important;
+        }
     </style>
 """, unsafe_allow_html=True)
 
