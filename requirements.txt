@@ -1,3 +1,4 @@
 streamlit
 sqlalchemy
 openai
+streamlit-quill
