@@ -22,7 +22,6 @@ SECTION_PATTERNS = {
     "materials and methods": r"^(materials? and methods?|methodology|methods?)[:\s]*$",
     "results and discussion": r"^(results and discussion|results & discussion|result and discussion|results|discussion|findings)[:\s]*$",
     "conclusion": r"^(conclusion[s]?)[:\s]*$",
-    # Improved regex for references/bibliography detection with optional numbering and punctuation
     "references": r"^((\d+\.?|[ivxlc]+\.)?\s*)?(references|bibliography)[:\s]*$",
 }
 SECTION_HEADERS = list(SECTION_PATTERNS.keys())
@@ -34,13 +33,18 @@ def fuzzy_section_match(text):
             return sec
     return None
 
-def split_docx_sections(docx_file):
+# --- NEW: Section splitting with automatic image extraction/tagging ---
+def split_docx_sections_and_images(docx_file):
     doc = docx.Document(docx_file)
     text_sections = {}
     current_section = "title"
     buffer = []
+    image_bytes_list = []
+    para_images = {}
+    img_counter = 1
 
     def flush_buffer():
+        nonlocal buffer, current_section
         if buffer:
             joined = "\n".join(buffer).strip()
             if joined:
@@ -49,22 +53,44 @@ def split_docx_sections(docx_file):
                 text_sections[current_section] += joined + "\n"
             buffer.clear()
 
-    for para in doc.paragraphs:
+    for para_idx, para in enumerate(doc.paragraphs):
         para_text = para.text.strip()
-        if not para_text:
-            continue
+        found_img = False
+        img_this_para = []
+        for run in para.runs:
+            # This is the robust way to check for images in a run:
+            if "graphic" in run._element.xml:
+                # For each relationship in the part (usually only one per image)
+                for rel in run.part.rels.values():
+                    if "image" in rel.target_ref:
+                        image_bytes = rel.target_part.blob
+                        if image_bytes not in image_bytes_list:
+                            image_bytes_list.append(image_bytes)
+                            img_num = len(image_bytes_list)
+                        else:
+                            img_num = image_bytes_list.index(image_bytes) + 1
+                        img_this_para.append(img_num)
+                        found_img = True
         found_header = fuzzy_section_match(para_text)
         if found_header:
             flush_buffer()
             current_section = found_header
-            # Only skip if the whole line is the header, else trim just the header
             if re.match(SECTION_PATTERNS[found_header], para_text.strip().lower()):
-                continue
+                para_text = ""  # skip the heading line
             else:
                 para_text = re.sub(SECTION_PATTERNS[found_header], '', para_text, flags=re.I).strip()
-        buffer.append(para_text)
+        # If image(s) in paragraph and NO text, just insert tag(s)
+        if found_img and not para_text:
+            for img_num in img_this_para:
+                buffer.append(f'{{image{img_num}}}')
+            continue
+        # If text and image(s), insert tags at the end of the paragraph
+        if para_text:
+            buffer.append(para_text)
+            for img_num in img_this_para:
+                buffer.append(f'{{image{img_num}}}')
     flush_buffer()
-    return text_sections
+    return text_sections, image_bytes_list
 
 # --- SESSION STATE INIT ---
 if 'papers' not in st.session_state: st.session_state.papers = []
@@ -188,7 +214,7 @@ if st.session_state.role == "faculty":
     st.title("Faculty Dashboard")
     st.write(f"Welcome, {st.session_state.name}")
 
-    st.info("**Tip:** Please use standard section headings (Title, Abstract, Introduction, Materials and Methods, Results and Discussion, Conclusion, References) in your document. Section headers can be numbered (e.g., '9. References') or include a colon (e.g., 'REFERENCES:'). To include images or tables, upload them below and insert `{image1}`, `{table1}` etc. in your text where you want them to appear.")
+    st.info("**Tip:** Upload DOCX with images and/or text. Images will be auto-extracted and placed in the section content as `{image1}`, `{image2}`, etc. To include more images or tables, upload them below and use `{imageN}`, `{tableN}` in your text.")
 
     papers = get_papers_for_faculty(st.session_state.username)
 
@@ -211,13 +237,17 @@ if st.session_state.role == "faculty":
 
         attachments = get_attachment_dict(paper['id'])
 
-        uploaded_docx = st.file_uploader("Upload DOCX to Auto-Split/Update Sections", type=["docx"])
+        uploaded_docx = st.file_uploader("Upload DOCX to Auto-Split/Update Sections (text and images)", type=["docx"])
         if uploaded_docx:
-            new_sections = split_docx_sections(uploaded_docx)
-            # Optional: st.write(new_sections) for debug
+            new_sections, image_bytes_list = split_docx_sections_and_images(uploaded_docx)
+            # Save images to attachments for this paper:
+            for img_bytes in image_bytes_list:
+                img_b64 = base64.b64encode(img_bytes).decode()
+                if img_b64 not in attachments["images"]:
+                    attachments["images"].append(img_b64)
             updated = versioned_update(paper, new_sections, who=st.session_state.name, note="DOCX upload")
             if updated:
-                st.success("Sections updated from DOCX. All changes tracked below.")
+                st.success("Sections updated from DOCX. All changes tracked below (and images auto-inserted).")
             else:
                 st.info("No changes detected from upload.")
 
@@ -242,11 +272,11 @@ if st.session_state.role == "faculty":
 
         st.markdown("---")
         if attachments["images"]:
-            st.write("Attached Images (copy {image1}, {image2}... to use in your content):")
+            st.write("Attached Images (auto and manual):")
             for idx, img_b64 in enumerate(attachments["images"]):
                 st.image(BytesIO(base64.b64decode(img_b64)), caption=f"image{idx+1}")
         if attachments["tables"]:
-            st.write("Attached Tables (copy {table1}, {table2}... to use in your content):")
+            st.write("Attached Tables:")
             for t_idx, table_html in enumerate(attachments["tables"]):
                 st.markdown(table_html, unsafe_allow_html=True)
         st.markdown("---")
@@ -255,6 +285,8 @@ if st.session_state.role == "faculty":
             changed = False
             for section in SECTION_HEADERS:
                 st.markdown(f"#### {section.title()}")
+                # Replace placeholders for display
+                section_html = replace_placeholders_with_attachments(paper["sections"].get(section, ""), attachments)
                 val = st_quill(
                     key=f"q_{section}_{paper['id']}",
                     value=paper["sections"].get(section, ""),
@@ -271,6 +303,11 @@ if st.session_state.role == "faculty":
                     })
                     paper["sections"][section] = val
                     changed = True
+                # Show images/tables in context after each section
+                if section_html.strip():
+                    st.markdown("---")
+                    st.markdown("##### Preview with images/tables:")
+                    st.markdown(replace_placeholders_with_attachments(section_html, attachments), unsafe_allow_html=True)
             if st.form_submit_button("Save Changes") and changed:
                 st.success("Changes saved and tracked.")
 
