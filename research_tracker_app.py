@@ -22,7 +22,7 @@ SECTION_PATTERNS = {
     "materials and methods": r"^(materials? and methods?|methodology|methods?)[:\s]*$",
     "results and discussion": r"^(results and discussion|results & discussion|result and discussion|results|discussion|findings)[:\s]*$",
     "conclusion": r"^(conclusion[s]?)[:\s]*$",
-    # --- Improved regex for references/bibliography detection with optional numbering and punctuation ---
+    # Improved regex for references/bibliography detection with optional numbering and punctuation
     "references": r"^((\d+\.?|[ivxlc]+\.)?\s*)?(references|bibliography)[:\s]*$",
 }
 SECTION_HEADERS = list(SECTION_PATTERNS.keys())
@@ -38,25 +38,32 @@ def split_docx_sections(docx_file):
     doc = docx.Document(docx_file)
     text_sections = {}
     current_section = "title"
-    text_sections[current_section] = ""
+    buffer = []
+
+    def flush_buffer():
+        if buffer:
+            joined = "\n".join(buffer).strip()
+            if joined:
+                if current_section not in text_sections:
+                    text_sections[current_section] = ""
+                text_sections[current_section] += joined + "\n"
+            buffer.clear()
+
     for para in doc.paragraphs:
         para_text = para.text.strip()
         if not para_text:
             continue
         found_header = fuzzy_section_match(para_text)
         if found_header:
+            flush_buffer()
             current_section = found_header
-            if current_section not in text_sections:
-                text_sections[current_section] = ""
             # Only skip if the whole line is the header, else trim just the header
             if re.match(SECTION_PATTERNS[found_header], para_text.strip().lower()):
                 continue
             else:
                 para_text = re.sub(SECTION_PATTERNS[found_header], '', para_text, flags=re.I).strip()
-        if current_section not in text_sections:
-            text_sections[current_section] = ""
-        if para_text:
-            text_sections[current_section] += para_text + "\n"
+        buffer.append(para_text)
+    flush_buffer()
     return text_sections
 
 # --- SESSION STATE INIT ---
@@ -207,6 +214,7 @@ if st.session_state.role == "faculty":
         uploaded_docx = st.file_uploader("Upload DOCX to Auto-Split/Update Sections", type=["docx"])
         if uploaded_docx:
             new_sections = split_docx_sections(uploaded_docx)
+            # Optional: st.write(new_sections) for debug
             updated = versioned_update(paper, new_sections, who=st.session_state.name, note="DOCX upload")
             if updated:
                 st.success("Sections updated from DOCX. All changes tracked below.")
