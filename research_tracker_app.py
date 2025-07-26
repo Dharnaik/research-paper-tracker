@@ -3,6 +3,9 @@ from streamlit_quill import st_quill
 import datetime
 import docx
 import re
+import base64
+import pandas as pd
+from io import BytesIO
 
 # --- USERS ---
 users = {
@@ -16,7 +19,7 @@ SECTION_PATTERNS = {
     "title": r"^(title)[:\s]*$",
     "abstract": r"^(abstract)[:\s]*$",
     "introduction": r"^(introduction|intro)[:\s]*$",
-    "methods": r"^(methods|materials and methods|methodology)[:\s]*$",
+    "materials and methods": r"^(materials? and methods?|methodology|methods?)[:\s]*$",
     "results and discussion": r"^(results and discussion|results & discussion|result and discussion|results|discussion|findings)[:\s]*$",
     "conclusion": r"^(conclusion[s]?)[:\s]*$",
     "references": r"^(references|bibliography)[:\s]*$",
@@ -119,10 +122,6 @@ def get_attachment_dict(paper_id):
         st.session_state.paper_attachments[paper_id] = {"images": [], "tables": []}
     return st.session_state.paper_attachments[paper_id]
 
-import base64
-import pandas as pd
-from io import BytesIO
-
 def add_uploaded_images(uploaded_images, attachments):
     for img in uploaded_images:
         img.seek(0)
@@ -180,7 +179,7 @@ if st.session_state.role == "faculty":
     st.title("Faculty Dashboard")
     st.write(f"Welcome, {st.session_state.name}")
 
-    st.info("**Tip:** Please use standard section headings (Title, Abstract, Introduction, Methods, Results and Discussion, Conclusion, References) in your document. To include images or tables, upload them below and insert `{image1}`, `{table1}` etc. in your text where you want them to appear.")
+    st.info("**Tip:** Please use standard section headings (Title, Abstract, Introduction, Materials and Methods, Results and Discussion, Conclusion, References) in your document. To include images or tables, upload them below and insert `{image1}`, `{table1}` etc. in your text where you want them to appear.")
 
     papers = get_papers_for_faculty(st.session_state.username)
 
