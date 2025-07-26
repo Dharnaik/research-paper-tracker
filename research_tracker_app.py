@@ -4,8 +4,8 @@ import os
 import smtplib
 from email.message import EmailMessage
 
-# --- USERS (all faculty, admin, reviewers created by admin) ---
-users = {
+# --- Static users (admin and faculty) ---
+static_users = {
     "admin": {"password": "adminpass", "role": "admin", "name": "Admin"},
     "amit.dharnaik": {"password": "pass7", "role": "faculty", "name": "Prof. Dr. Amit S. Dharnaik"},
     "satish.patil": {"password": "pass8", "role": "faculty", "name": "Prof. Dr. Satish B. Patil"},
@@ -17,8 +17,16 @@ users = {
     "gauri.desai": {"password": "pass14", "role": "faculty", "name": "Prof. Gauri S. Desai"},
     "bhagyashri.patil": {"password": "pass15", "role": "faculty", "name": "Prof. Bhagyashri D. Patil"},
     "sagar.sonawane": {"password": "pass16", "role": "faculty", "name": "Prof. Sagar K. Sonawane"},
-    # Reviewers will be added dynamically by admin
 }
+
+if 'dynamic_users' not in st.session_state:
+    st.session_state.dynamic_users = {}  # reviewers only
+
+def all_users():
+    return {**static_users, **st.session_state.dynamic_users}
+
+def get_user(username):
+    return all_users().get(username)
 
 PAPER_STATUS = [
     "Draft", "Submitted", "Under Review", "Review Completed",
@@ -52,7 +60,7 @@ def login():
     username = st.text_input("Username").strip()
     password = st.text_input("Password", type="password")
     if st.button("Login"):
-        user = users.get(username)
+        user = get_user(username)
         if user and user["password"] == password:
             st.session_state.logged_in = True
             st.session_state.username = username
@@ -66,9 +74,7 @@ def logout():
     st.session_state.username = ''
     st.session_state.role = ''
     st.session_state.name = ''
-    # No rerun or stop needed! Let the main code handle page refresh.
 
-# ---- LOGIN CHECK (must be above all dashboards!) ----
 if not st.session_state.logged_in:
     login()
     st.stop()
@@ -83,24 +89,21 @@ if not st.session_state.papers:
     st.sidebar.info("No papers submitted yet.")
 else:
     for paper in st.session_state.papers:
-        faculty_name = users[paper["faculty_username"]]["name"]
+        faculty_name = get_user(paper["faculty_username"])["name"]
         reviewers = st.session_state.assignments.get(paper['id'], [])
-        assigned_reviewers = ", ".join([users[r]['name'] for r in reviewers]) if reviewers else "-"
+        assigned_reviewers = ", ".join([get_user(r)['name'] for r in reviewers]) if reviewers else "-"
         st.sidebar.write(
             f"**ID:** {paper['id']} | **Title:** {paper['title']}\n\n"
             f"**By:** {faculty_name}\n"
             f"**Status:** {paper['status']}\n"
             f"**Reviewer(s):** {assigned_reviewers}"
         )
-        # Only show download for admin or (reviewer assigned to this paper)
         show_download = False
         if st.session_state.role == "admin":
             show_download = True
         elif st.session_state.role == "reviewer":
-            # Only allow assigned reviewers to download
             if st.session_state.username in reviewers:
                 show_download = True
-        # No download for faculty in sidebar
         if show_download and "filepath" in paper:
             with open(paper["filepath"], "rb") as f:
                 st.sidebar.download_button(
@@ -132,20 +135,6 @@ def save_uploaded_file(uploaded_file, paper_id):
     return filepath
 
 def send_assignment_email(to_email, reviewer_name, paper_title, faculty_name, admin_email="youradmin@email.com"):
-    # Replace with actual SMTP for real email sending!
-    EMAIL_ADDRESS = "youradmin@email.com"
-    EMAIL_PASSWORD = "yourpassword"
-    msg = EmailMessage()
-    msg["Subject"] = f"Paper Assignment: {paper_title}"
-    msg["From"] = EMAIL_ADDRESS
-    msg["To"] = to_email
-    msg.set_content(
-        f"Dear {reviewer_name},\n\n"
-        f"You have been assigned to review the paper titled '{paper_title}' submitted by {faculty_name}.\n"
-        f"Please login to the portal to download and review the paper.\n\n"
-        f"Regards,\nAdmin"
-    )
-    # For demo, display in Streamlit instead of sending
     st.info(f"""
     [Demo] Would send email:
     **To:** {to_email}
@@ -154,12 +143,7 @@ def send_assignment_email(to_email, reviewer_name, paper_title, faculty_name, ad
     Dear {reviewer_name},  
     You have been assigned to review the paper titled '{paper_title}' submitted by {faculty_name}.
     """)
-    # Uncomment and use actual SMTP server for production:
-    # with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
-    #     smtp.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
-    #     smtp.send_message(msg)
 
-# ----- FACULTY DASHBOARD -----
 if st.session_state.role == "faculty":
     st.title("Author Dashboard")
     st.write(f"Welcome, {st.session_state.name}")
@@ -176,7 +160,6 @@ if st.session_state.role == "faculty":
             if not paper_title or not uploaded_file:
                 st.warning("Both title and file required.")
             else:
-                # If paper with same title exists, update it
                 existing = next((p for p in papers if p['title'].lower() == paper_title.lower()), None)
                 if existing:
                     filepath = save_uploaded_file(uploaded_file, existing["id"])
@@ -215,7 +198,6 @@ if st.session_state.role == "faculty":
                         f"Suggestions: {rev['suggestions']}")
         st.write("---")
 
-# ----- REVIEWER DASHBOARD -----
 elif st.session_state.role == "reviewer":
     st.title("Reviewer Dashboard")
     st.write(f"Welcome, {st.session_state.name}")
@@ -230,7 +212,6 @@ elif st.session_state.role == "reviewer":
         st.write(f"Status: {paper['status']}")
         st.write("Review this paper:")
 
-        # Show existing review or review form
         review = next((r for r in st.session_state.reviews if r["paper_id"] == paper["id"] and r["reviewer"] == st.session_state.username), None)
         if review:
             st.success(f"You already reviewed this paper: {review['recommendation']}")
@@ -265,13 +246,11 @@ elif st.session_state.role == "reviewer":
                     st.experimental_rerun()
         st.write("---")
 
-# ----- ADMIN DASHBOARD -----
 elif st.session_state.role == "admin":
     st.title("Admin Dashboard")
 
-    # --- Reviewer Account Creation/Deletion Section ---
     st.subheader("Create/Delete Reviewer Account (Max 6)")
-    existing_reviewers = [uname for uname, uinfo in users.items() if uinfo['role'] == 'reviewer']
+    existing_reviewers = [uname for uname, uinfo in st.session_state.dynamic_users.items() if uinfo['role'] == 'reviewer']
     if len(existing_reviewers) < 6:
         with st.form("create_reviewer_form"):
             new_reviewer_username = st.text_input("Reviewer Username")
@@ -281,10 +260,10 @@ elif st.session_state.role == "admin":
             if reviewer_submit:
                 if not new_reviewer_username or not new_reviewer_password or not new_reviewer_name:
                     st.warning("All fields are required!")
-                elif new_reviewer_username in users:
+                elif new_reviewer_username in all_users():
                     st.warning("Username already exists.")
                 else:
-                    users[new_reviewer_username] = {
+                    st.session_state.dynamic_users[new_reviewer_username] = {
                         "password": new_reviewer_password,
                         "role": "reviewer",
                         "name": new_reviewer_name
@@ -295,19 +274,17 @@ elif st.session_state.role == "admin":
 
     st.write("**Existing Reviewers:**")
     for uname in existing_reviewers:
-        st.write(f"- {uname} ({users[uname]['name']})")
-    if st.button("Delete a Reviewer Account"):
+        st.write(f"- {uname} ({get_user(uname)['name']})")
+    if existing_reviewers and st.button("Delete a Reviewer Account"):
         reviewer_to_delete = st.selectbox("Select reviewer to delete", existing_reviewers, key="del_reviewer_select")
         if reviewer_to_delete:
-            del users[reviewer_to_delete]
-            # Also remove assignments
+            del st.session_state.dynamic_users[reviewer_to_delete]
             for pid in st.session_state.assignments:
                 if reviewer_to_delete in st.session_state.assignments[pid]:
                     st.session_state.assignments[pid].remove(reviewer_to_delete)
             st.success(f"Reviewer '{reviewer_to_delete}' deleted.")
             st.experimental_rerun()
 
-    # --- Assign Reviewer to Paper Section (always visible) ---
     st.subheader("Assign Reviewers to Papers")
     paper_titles = [f"{p['id']} - {p['title']}" for p in st.session_state.papers]
     if not existing_reviewers:
@@ -323,27 +300,25 @@ elif st.session_state.role == "admin":
             st.session_state.assignments.setdefault(selected_paper_id, [])
             if selected_reviewer not in st.session_state.assignments[selected_paper_id]:
                 st.session_state.assignments[selected_paper_id].append(selected_reviewer)
-                # Optional: email to reviewer
                 paper = next(p for p in st.session_state.papers if p["id"] == selected_paper_id)
-                faculty_name = users[paper["faculty_username"]]["name"]
+                faculty_name = get_user(paper["faculty_username"])["name"]
                 send_assignment_email(
                     to_email=f"{selected_reviewer}@example.com",
-                    reviewer_name=users[selected_reviewer]["name"],
+                    reviewer_name=get_user(selected_reviewer)["name"],
                     paper_title=paper["title"],
                     faculty_name=faculty_name
                 )
-                st.success(f"Assigned {users[selected_reviewer]['name']} to review '{paper['title']}'.")
+                st.success(f"Assigned {get_user(selected_reviewer)['name']} to review '{paper['title']}'.")
             else:
                 st.info("Reviewer already assigned to this paper.")
 
-    # --- Paper and Review Status Dashboard (main page for admin) ---
     st.subheader("All Faculty Papers and Status")
     for paper in st.session_state.papers:
-        faculty_name = users[paper["faculty_username"]]["name"]
+        faculty_name = get_user(paper["faculty_username"])["name"]
         st.write(f"**Title:** {paper['title']} | **By:** {faculty_name} | **Status:** {paper['status']}")
         reviewers = st.session_state.assignments.get(paper['id'], [])
         if reviewers:
-            st.write(f"Assigned Reviewer(s): {', '.join([users[r]['name'] for r in reviewers])}")
+            st.write(f"Assigned Reviewer(s): {', '.join([get_user(r)['name'] for r in reviewers])}")
         if "filepath" in paper:
             with open(paper["filepath"], "rb") as f:
                 st.download_button("Download Paper", f, file_name=paper["filepath"].split("/")[-1], key=f"down_{paper['id']}")
