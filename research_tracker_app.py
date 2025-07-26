@@ -139,10 +139,16 @@ if st.session_state.role == "faculty":
             else:
                 st.info("No changes detected from upload.")
 
+        # --- Each section gets a heading and an editor ---
         with st.form("edit_sections_form"):
             changed = False
             for section in SECTION_HEADERS:
-                val = st_quill(key=f"q_{section}_{paper['id']}", value=paper["sections"].get(section, ""), html=True)
+                st.markdown(f"#### {section.title()}")
+                val = st_quill(
+                    key=f"q_{section}_{paper['id']}",
+                    value=paper["sections"].get(section, ""),
+                    html=True
+                )
                 if val != paper["sections"].get(section, ""):
                     paper["history"].append({
                         "who": st.session_state.name,
