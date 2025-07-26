@@ -4,11 +4,9 @@ import os
 import smtplib
 from email.message import EmailMessage
 
-# --- USERS ---
+# --- USERS (all faculty, admin, reviewers created by admin) ---
 users = {
-    # Admin
     "admin": {"password": "adminpass", "role": "admin", "name": "Admin"},
-    # Faculty
     "amit.dharnaik": {"password": "pass7", "role": "faculty", "name": "Prof. Dr. Amit S. Dharnaik"},
     "satish.patil": {"password": "pass8", "role": "faculty", "name": "Prof. Dr. Satish B. Patil"},
     "abhijeet.galatage": {"password": "pass9", "role": "faculty", "name": "Prof. Abhijeet A. Galatage"},
@@ -19,6 +17,7 @@ users = {
     "gauri.desai": {"password": "pass14", "role": "faculty", "name": "Prof. Gauri S. Desai"},
     "bhagyashri.patil": {"password": "pass15", "role": "faculty", "name": "Prof. Bhagyashri D. Patil"},
     "sagar.sonawane": {"password": "pass16", "role": "faculty", "name": "Prof. Sagar K. Sonawane"},
+    # Reviewers will be added dynamically by admin
 }
 
 PAPER_STATUS = [
@@ -78,6 +77,26 @@ st.sidebar.write(f"Logged in as: {st.session_state.name} ({st.session_state.role
 if st.sidebar.button("Logout"):
     logout()
 
+# --- Global Paper Dashboard in Sidebar ---
+st.sidebar.markdown("## 📊 Paper Status Dashboard")
+if not st.session_state.papers:
+    st.sidebar.info("No papers submitted yet.")
+else:
+    for paper in st.session_state.papers:
+        faculty_name = users[paper["faculty_username"]]["name"]
+        reviewers = st.session_state.assignments.get(paper['id'], [])
+        assigned_reviewers = ", ".join([users[r]['name'] for r in reviewers]) if reviewers else "-"
+        st.sidebar.write(
+            f"**ID:** {paper['id']} | **Title:** {paper['title']}\n\n"
+            f"**By:** {faculty_name}\n"
+            f"**Status:** {paper['status']}\n"
+            f"**Reviewer(s):** {assigned_reviewers}"
+        )
+        if "filepath" in paper:
+            with open(paper["filepath"], "rb") as f:
+                st.sidebar.download_button("⬇️ Download", f, file_name=paper["filepath"].split("/")[-1], key=f"sidebar_down_{paper['id']}")
+        st.sidebar.markdown("---")
+
 def get_papers_for_faculty(username):
     return [p for p in st.session_state.papers if p['faculty_username'] == username]
 
@@ -102,7 +121,6 @@ def send_assignment_email(to_email, reviewer_name, paper_title, faculty_name, ad
     # Replace with actual SMTP for real email sending!
     EMAIL_ADDRESS = "youradmin@email.com"
     EMAIL_PASSWORD = "yourpassword"
-
     msg = EmailMessage()
     msg["Subject"] = f"Paper Assignment: {paper_title}"
     msg["From"] = EMAIL_ADDRESS
@@ -113,7 +131,7 @@ def send_assignment_email(to_email, reviewer_name, paper_title, faculty_name, ad
         f"Please login to the portal to download and review the paper.\n\n"
         f"Regards,\nAdmin"
     )
-    # --- For demo, display in Streamlit instead of sending ---
+    # For demo, display in Streamlit instead of sending
     st.info(f"""
     [Demo] Would send email:
     **To:** {to_email}
@@ -122,7 +140,7 @@ def send_assignment_email(to_email, reviewer_name, paper_title, faculty_name, ad
     Dear {reviewer_name},  
     You have been assigned to review the paper titled '{paper_title}' submitted by {faculty_name}.
     """)
-    # To enable real email, uncomment and fill your SMTP details below:
+    # Uncomment and use actual SMTP server for production:
     # with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
     #     smtp.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
     #     smtp.send_message(msg)
@@ -268,6 +286,10 @@ elif st.session_state.role == "admin":
         reviewer_to_delete = st.selectbox("Select reviewer to delete", existing_reviewers, key="del_reviewer_select")
         if reviewer_to_delete:
             del users[reviewer_to_delete]
+            # Also remove assignments
+            for pid in st.session_state.assignments:
+                if reviewer_to_delete in st.session_state.assignments[pid]:
+                    st.session_state.assignments[pid].remove(reviewer_to_delete)
             st.success(f"Reviewer '{reviewer_to_delete}' deleted.")
             st.experimental_rerun()
 
@@ -296,7 +318,7 @@ elif st.session_state.role == "admin":
             else:
                 st.info("Reviewer already assigned to this paper.")
 
-    # --- Paper and Review Status Dashboard ---
+    # --- Paper and Review Status Dashboard (main page for admin) ---
     st.subheader("All Faculty Papers and Status")
     for paper in st.session_state.papers:
         faculty_name = users[paper["faculty_username"]]["name"]
