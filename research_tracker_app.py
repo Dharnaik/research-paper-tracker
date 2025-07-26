@@ -3,7 +3,7 @@ from streamlit_quill import st_quill
 import datetime
 import docx
 
-# --- USERS (must be at the top!) ---
+# --- USERS (Must be at the top, before functions use it!) ---
 users = {
     "admin": {"password": "adminpass", "role": "admin", "name": "Admin"},
     "yuvaraj.bhirud": {"password": "pass1", "role": "faculty", "name": "Prof. Dr. Yuvaraj L. Bhirud"},
@@ -23,7 +23,7 @@ SECTION_HEADERS = [
     "title", "abstract", "introduction", "methods", "results", "discussion", "conclusion", "references"
 ]
 
-# --- SESSION STATE INIT ---
+# --- SESSION STATE INIT (All session vars here) ---
 if 'papers' not in st.session_state:
     st.session_state.papers = []
 if 'edit_paper_id' not in st.session_state:
@@ -33,31 +33,12 @@ if 'logged_in' not in st.session_state:
     st.session_state.username = ''
     st.session_state.role = ''
     st.session_state.name = ''
-# Flags for safe rerun handling
-if "just_started_paper" not in st.session_state:
-    st.session_state.just_started_paper = False
-if "just_edit_paper" not in st.session_state:
-    st.session_state.just_edit_paper = False
-if "just_delete_paper" not in st.session_state:
-    st.session_state.just_delete_paper = False
-if "just_logout" not in st.session_state:
-    st.session_state.just_logout = False
+if 'rerun_flag' not in st.session_state:
+    st.session_state.rerun_flag = None
 
-# ---- SAFE RERUN HANDLER AT TOP ----
-if st.session_state.just_started_paper:
-    st.session_state.just_started_paper = False
-    st.experimental_rerun()
-    st.stop()
-if st.session_state.just_edit_paper:
-    st.session_state.just_edit_paper = False
-    st.experimental_rerun()
-    st.stop()
-if st.session_state.just_delete_paper:
-    st.session_state.just_delete_paper = False
-    st.experimental_rerun()
-    st.stop()
-if st.session_state.just_logout:
-    st.session_state.just_logout = False
+# ---- SAFE RERUN HANDLER AT VERY TOP ----
+if st.session_state.rerun_flag is not None:
+    st.session_state.rerun_flag = None
     st.experimental_rerun()
     st.stop()
 
@@ -117,7 +98,8 @@ def login():
     st.title("Faculty Research Paper Portal - Login")
     username = st.text_input("Username").strip()
     password = st.text_input("Password", type="password")
-    st.write("DEBUG - You entered:", repr(username))
+    # Uncomment to debug username input:
+    # st.write("DEBUG - You entered:", repr(username))
     if st.button("Login"):
         user = users.get(username)
         if user and user["password"] == password:
@@ -125,7 +107,8 @@ def login():
             st.session_state.username = username
             st.session_state.role = user["role"]
             st.session_state.name = user["name"]
-            st.success(f"Welcome, {user['name']} ({user['role']})")
+            st.session_state.rerun_flag = "login"
+            st.stop()
         else:
             st.error("Invalid username or password.")
 
@@ -134,7 +117,9 @@ def logout():
     st.session_state.username = ''
     st.session_state.role = ''
     st.session_state.name = ''
-    st.session_state.just_logout = True
+    st.session_state.edit_paper_id = None
+    st.session_state.rerun_flag = "logout"
+    st.stop()
 
 if not st.session_state.logged_in:
     login()
@@ -144,7 +129,6 @@ if not st.session_state.logged_in:
 st.sidebar.write(f"Logged in as: {st.session_state.name} ({st.session_state.role})")
 if st.sidebar.button("Logout"):
     logout()
-    st.stop()
 
 # --- FACULTY DASHBOARD ---
 if st.session_state.role == "faculty":
@@ -163,12 +147,12 @@ if st.session_state.role == "faculty":
         with col2:
             if st.button("Edit", key=f"edit_{paper['id']}"):
                 st.session_state.edit_paper_id = paper['id']
-                st.session_state.just_edit_paper = True
+                st.session_state.rerun_flag = "edit"
                 st.stop()
         with col3:
             if st.button("Delete", key=f"delete_{paper['id']}"):
                 st.session_state.papers = [p for p in st.session_state.papers if p['id'] != paper['id']]
-                st.session_state.just_delete_paper = True
+                st.session_state.rerun_flag = "delete"
                 st.stop()
         st.markdown("---")
 
@@ -182,7 +166,7 @@ if st.session_state.role == "faculty":
         }
         st.session_state.papers.append(new_paper)
         st.session_state.edit_paper_id = new_paper['id']
-        st.session_state.just_started_paper = True
+        st.session_state.rerun_flag = "start"
         st.stop()
 
     # ----- Edit/view a paper -----
@@ -218,7 +202,7 @@ if st.session_state.role == "faculty":
                     changed = True
             if st.form_submit_button("Save Changes") and changed:
                 st.success("Changes saved and tracked.")
-                st.session_state.just_edit_paper = True
+                st.session_state.rerun_flag = "save"
                 st.stop()
 
         # Show change history
@@ -234,5 +218,5 @@ if st.session_state.role == "faculty":
 
         if st.button("Back to My Papers"):
             st.session_state.edit_paper_id = None
-            st.session_state.just_edit_paper = True
+            st.session_state.rerun_flag = "back"
             st.stop()
