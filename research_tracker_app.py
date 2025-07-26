@@ -26,16 +26,15 @@ if 'logged_in' not in st.session_state:
     st.session_state.name = ''
 if 'pending_action' not in st.session_state:
     st.session_state.pending_action = None
+# FINAL GUARD:
+if 'init_complete' not in st.session_state:
+    st.session_state.init_complete = False
 
-# ---- KEY LINE: make sure all keys exist, then activate rerun logic only on 2nd run ----
-if 'safe_for_rerun' not in st.session_state:
-    st.session_state.safe_for_rerun = False
-
-if not st.session_state.safe_for_rerun:
-    st.session_state.safe_for_rerun = True
+if not st.session_state.init_complete:
+    st.session_state.init_complete = True
     st.stop()
 
-# ---- SAFE RERUN HANDLER ----
+# --- PENDING ACTION HANDLER ---
 if st.session_state.pending_action:
     st.session_state.pending_action = None
     st.experimental_rerun()
@@ -115,6 +114,7 @@ def logout():
     st.session_state.name = ''
     st.session_state.edit_paper_id = None
     st.session_state.pending_action = None
+    st.session_state.init_complete = False  # <-- re-initialize guard!
     st.experimental_rerun()
     st.stop()
 
