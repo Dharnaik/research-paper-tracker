@@ -89,7 +89,7 @@ def next_paper_id():
 
 def login():
     st.title("Faculty Research Paper Portal - Login")
-    username = st.text_input("Username").strip()  # strip whitespace
+    username = st.text_input("Username").strip()
     password = st.text_input("Password", type="password")
     st.write("DEBUG - You entered:", repr(username))
     if st.button("Login"):
