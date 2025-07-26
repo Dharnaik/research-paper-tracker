@@ -7,24 +7,14 @@ import docx
 # --- USERS ---
 users = {
     "admin": {"password": "adminpass", "role": "admin", "name": "Admin"},
-    "yuvaraj.bhirud": {"password": "pass1", "role": "faculty", "name": "Prof. Dr. Yuvaraj L. Bhirud"},
-    "satish.patil": {"password": "pass2", "role": "faculty", "name": "Prof. Dr. Satish B. Patil"},
-    "abhijeet.galatage": {"password": "pass3", "role": "faculty", "name": "Prof. Abhijeet A. Galatage"},
-    "rajshekhar.rathod": {"password": "pass4", "role": "faculty", "name": "Prof. Dr. Rajshekhar G. Rathod"},
-    "avinash.rakh": {"password": "pass5", "role": "faculty", "name": "Prof. Avinash A. Rakh"},
-    "achyut.deshmukh": {"password": "pass6", "role": "faculty", "name": "Prof. Achyut A. Deshmukh"},
-    "amit.dharnaik": {"password": "pass7", "role": "faculty", "name": "Prof. Dr. Amit S. Dharnaik"},
-    "hrishikesh.mulay": {"password": "pass8", "role": "faculty", "name": "Prof. Hrishikesh U Mulay"},
-    "gauri.desai": {"password": "pass9", "role": "faculty", "name": "Prof. Gauri S. Desai"},
-    "bhagyashri.patil": {"password": "pass10", "role": "faculty", "name": "Prof. Bhagyashri D. Patil"},
-    "sagar.sonawane": {"password": "pass11", "role": "faculty", "name": "Prof. Sagar K. Sonawane"},
+    # ... your other users ...
 }
 
 SECTION_HEADERS = [
     "title", "abstract", "introduction", "methods", "results", "discussion", "conclusion", "references"
 ]
 
-# --- SESSION STATE INIT (AT TOP) ---
+# --- SESSION STATE INIT ---
 if 'papers' not in st.session_state:
     st.session_state.papers = []
 if 'edit_paper_id' not in st.session_state:
@@ -34,21 +24,6 @@ if 'logged_in' not in st.session_state:
     st.session_state.username = ''
     st.session_state.role = ''
     st.session_state.name = ''
-if 'just_logged_in' not in st.session_state:
-    st.session_state.just_logged_in = False
-if 'just_logged_out' not in st.session_state:
-    st.session_state.just_logged_out = False
-
-# --- RERUN HANDLERS AT THE VERY TOP! ---
-if st.session_state.just_logged_in:
-    st.session_state.just_logged_in = False
-    st.experimental_rerun()
-    st.stop()
-
-if st.session_state.just_logged_out:
-    st.session_state.just_logged_out = False
-    st.experimental_rerun()
-    st.stop()
 
 # --- DOCX SPLIT & VERSION TRACK ---
 def split_docx_sections(docx_file):
@@ -102,7 +77,6 @@ def next_paper_id():
     else:
         return 1
 
-# --- LOGIN/LOGOUT LOGIC (NO RERUN HERE) ---
 def login():
     st.title("Faculty Research Paper Portal - Login")
     username = st.text_input("Username")
@@ -114,7 +88,6 @@ def login():
             st.session_state.username = username
             st.session_state.role = user["role"]
             st.session_state.name = user["name"]
-            st.session_state.just_logged_in = True
             st.success(f"Welcome, {user['name']} ({user['role']})")
         else:
             st.error("Invalid username or password.")
@@ -124,7 +97,6 @@ def logout():
     st.session_state.username = ''
     st.session_state.role = ''
     st.session_state.name = ''
-    st.session_state.just_logged_out = True
 
 if not st.session_state.logged_in:
     login()
@@ -134,6 +106,7 @@ if not st.session_state.logged_in:
 st.sidebar.write(f"Logged in as: {st.session_state.name} ({st.session_state.role})")
 if st.sidebar.button("Logout"):
     logout()
+    st.experimental_rerun()
     st.stop()
 
 # --- FACULTY DASHBOARD ---
