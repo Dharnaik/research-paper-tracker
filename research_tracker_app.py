@@ -104,6 +104,7 @@ def login():
             st.session_state.name = user["name"]
             st.success(f"Welcome, {user['name']} ({user['role']})")
             st.experimental_rerun()
+            st.stop()  # IMPORTANT: prevent code after rerun
         else:
             st.error("Invalid username or password.")
 
@@ -114,6 +115,7 @@ def logout():
     st.session_state.name = ''
     st.success("Logged out!")
     st.experimental_rerun()
+    st.stop()  # IMPORTANT
 
 if not st.session_state.logged_in:
     login()
@@ -123,6 +125,7 @@ if not st.session_state.logged_in:
 st.sidebar.write(f"Logged in as: {st.session_state.name} ({st.session_state.role})")
 if st.sidebar.button("Logout"):
     logout()
+    st.stop()
 
 # --- FACULTY DASHBOARD (per-section, versioned) ---
 if st.session_state.role == "faculty":
@@ -141,10 +144,13 @@ if st.session_state.role == "faculty":
         with col2:
             if st.button("Edit", key=f"edit_{paper['id']}"):
                 st.session_state.edit_paper_id = paper['id']
+                st.experimental_rerun()
+                st.stop()
         with col3:
             if st.button("Delete", key=f"delete_{paper['id']}"):
                 st.session_state.papers = [p for p in st.session_state.papers if p['id'] != paper['id']]
                 st.experimental_rerun()
+                st.stop()
         st.markdown("---")
 
     if st.button("Start New Paper"):
@@ -158,6 +164,7 @@ if st.session_state.role == "faculty":
         st.session_state.papers.append(new_paper)
         st.session_state.edit_paper_id = new_paper['id']
         st.experimental_rerun()
+        st.stop()
 
     # ----- Edit/view a paper -----
     if st.session_state.edit_paper_id is not None:
@@ -192,6 +199,8 @@ if st.session_state.role == "faculty":
                     changed = True
             if st.form_submit_button("Save Changes") and changed:
                 st.success("Changes saved and tracked.")
+                st.experimental_rerun()
+                st.stop()
 
         # Show change history
         st.markdown("### Change History")
@@ -207,3 +216,4 @@ if st.session_state.role == "faculty":
         if st.button("Back to My Papers"):
             st.session_state.edit_paper_id = None
             st.experimental_rerun()
+            st.stop()
