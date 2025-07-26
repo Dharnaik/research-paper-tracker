@@ -3,7 +3,7 @@ from streamlit_quill import st_quill
 import datetime
 import docx
 
-# --- USERS (Must be at the top, before functions use it!) ---
+# --- USERS (Define BEFORE anything else uses it) ---
 users = {
     "admin": {"password": "adminpass", "role": "admin", "name": "Admin"},
     "yuvaraj.bhirud": {"password": "pass1", "role": "faculty", "name": "Prof. Dr. Yuvaraj L. Bhirud"},
@@ -23,7 +23,7 @@ SECTION_HEADERS = [
     "title", "abstract", "introduction", "methods", "results", "discussion", "conclusion", "references"
 ]
 
-# --- SESSION STATE INIT (All session vars here) ---
+# --- SESSION STATE INIT ---
 if 'papers' not in st.session_state:
     st.session_state.papers = []
 if 'edit_paper_id' not in st.session_state:
@@ -36,8 +36,8 @@ if 'logged_in' not in st.session_state:
 if 'rerun_flag' not in st.session_state:
     st.session_state.rerun_flag = None
 
-# ---- SAFE RERUN HANDLER AT VERY TOP ----
-if st.session_state.rerun_flag is not None:
+# --- SAFE RERUN HANDLER AT VERY TOP ---
+if st.session_state.rerun_flag:
     st.session_state.rerun_flag = None
     st.experimental_rerun()
     st.stop()
@@ -94,12 +94,11 @@ def next_paper_id():
     else:
         return 1
 
+# --- LOGIN/LOGOUT (NO RERUN, JUST SET FLAG) ---
 def login():
     st.title("Faculty Research Paper Portal - Login")
     username = st.text_input("Username").strip()
     password = st.text_input("Password", type="password")
-    # Uncomment to debug username input:
-    # st.write("DEBUG - You entered:", repr(username))
     if st.button("Login"):
         user = users.get(username)
         if user and user["password"] == password:
