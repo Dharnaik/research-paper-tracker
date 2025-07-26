@@ -24,9 +24,9 @@ SECTION_HEADERS = [
     "title", "abstract", "introduction", "methods", "results", "discussion", "conclusion", "references"
 ]
 
-# --- STATE INIT ---
+# --- SESSION STATE INIT (AT TOP) ---
 if 'papers' not in st.session_state:
-    st.session_state.papers = []  # id, faculty_username, sections{}, status, history[]
+    st.session_state.papers = []
 if 'edit_paper_id' not in st.session_state:
     st.session_state.edit_paper_id = None
 if 'logged_in' not in st.session_state:
@@ -38,6 +38,17 @@ if 'just_logged_in' not in st.session_state:
     st.session_state.just_logged_in = False
 if 'just_logged_out' not in st.session_state:
     st.session_state.just_logged_out = False
+
+# --- RERUN HANDLERS AT THE VERY TOP! ---
+if st.session_state.just_logged_in:
+    st.session_state.just_logged_in = False
+    st.experimental_rerun()
+    st.stop()
+
+if st.session_state.just_logged_out:
+    st.session_state.just_logged_out = False
+    st.experimental_rerun()
+    st.stop()
 
 # --- DOCX SPLIT & VERSION TRACK ---
 def split_docx_sections(docx_file):
@@ -91,7 +102,7 @@ def next_paper_id():
     else:
         return 1
 
-# --- LOGIN LOGIC WITH RERUN FLAG ---
+# --- LOGIN/LOGOUT LOGIC (NO RERUN HERE) ---
 def login():
     st.title("Faculty Research Paper Portal - Login")
     username = st.text_input("Username")
@@ -103,29 +114,17 @@ def login():
             st.session_state.username = username
             st.session_state.role = user["role"]
             st.session_state.name = user["name"]
-            st.session_state.just_logged_in = True  # Set flag instead of rerun here
+            st.session_state.just_logged_in = True
             st.success(f"Welcome, {user['name']} ({user['role']})")
         else:
             st.error("Invalid username or password.")
 
-# --- LOGOUT LOGIC WITH RERUN FLAG ---
 def logout():
     st.session_state.logged_in = False
     st.session_state.username = ''
     st.session_state.role = ''
     st.session_state.name = ''
-    st.session_state.just_logged_out = True  # Set logout flag
-
-# --- RERUN HANDLERS ---
-if st.session_state.just_logged_in:
-    st.session_state.just_logged_in = False
-    st.experimental_rerun()
-    st.stop()
-
-if st.session_state.just_logged_out:
-    st.session_state.just_logged_out = False
-    st.experimental_rerun()
-    st.stop()
+    st.session_state.just_logged_out = True
 
 if not st.session_state.logged_in:
     login()
@@ -137,7 +136,7 @@ if st.sidebar.button("Logout"):
     logout()
     st.stop()
 
-# --- FACULTY DASHBOARD (per-section, versioned) ---
+# --- FACULTY DASHBOARD ---
 if st.session_state.role == "faculty":
     st.title("Faculty Dashboard")
     st.write(f"Welcome, {st.session_state.name}")
