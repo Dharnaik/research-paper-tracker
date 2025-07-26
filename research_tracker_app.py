@@ -1,8 +1,6 @@
 import streamlit as st
 from streamlit_quill import st_quill
 import pandas as pd
-import base64
-from io import BytesIO
 import datetime
 import docx
 
@@ -22,7 +20,6 @@ users = {
     "sagar.sonawane": {"password": "pass11", "role": "faculty", "name": "Prof. Sagar K. Sonawane"},
 }
 
-# --- SECTION HEADINGS ---
 SECTION_HEADERS = [
     "title", "abstract", "introduction", "methods", "results", "discussion", "conclusion", "references"
 ]
@@ -37,6 +34,10 @@ if 'logged_in' not in st.session_state:
     st.session_state.username = ''
     st.session_state.role = ''
     st.session_state.name = ''
+if 'just_logged_in' not in st.session_state:
+    st.session_state.just_logged_in = False
+if 'just_logged_out' not in st.session_state:
+    st.session_state.just_logged_out = False
 
 # --- DOCX SPLIT & VERSION TRACK ---
 def split_docx_sections(docx_file):
@@ -90,7 +91,7 @@ def next_paper_id():
     else:
         return 1
 
-# --- AUTH ---
+# --- LOGIN LOGIC WITH RERUN FLAG ---
 def login():
     st.title("Faculty Research Paper Portal - Login")
     username = st.text_input("Username")
@@ -102,20 +103,29 @@ def login():
             st.session_state.username = username
             st.session_state.role = user["role"]
             st.session_state.name = user["name"]
+            st.session_state.just_logged_in = True  # Set flag instead of rerun here
             st.success(f"Welcome, {user['name']} ({user['role']})")
-            st.experimental_rerun()
-            st.stop()  # IMPORTANT: prevent code after rerun
         else:
             st.error("Invalid username or password.")
 
+# --- LOGOUT LOGIC WITH RERUN FLAG ---
 def logout():
     st.session_state.logged_in = False
     st.session_state.username = ''
     st.session_state.role = ''
     st.session_state.name = ''
-    st.success("Logged out!")
+    st.session_state.just_logged_out = True  # Set logout flag
+
+# --- RERUN HANDLERS ---
+if st.session_state.just_logged_in:
+    st.session_state.just_logged_in = False
     st.experimental_rerun()
-    st.stop()  # IMPORTANT
+    st.stop()
+
+if st.session_state.just_logged_out:
+    st.session_state.just_logged_out = False
+    st.experimental_rerun()
+    st.stop()
 
 if not st.session_state.logged_in:
     login()
