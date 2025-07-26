@@ -7,14 +7,14 @@ import docx
 users = {
     "admin": {"password": "adminpass", "role": "admin", "name": "Admin"},
     "amit.dharnaik": {"password": "pass7", "role": "faculty", "name": "Prof. Dr. Amit S. Dharnaik"},
-    # ...add more users as needed...
+    # Add more users as needed...
 }
 
 SECTION_HEADERS = [
     "title", "abstract", "introduction", "methods", "results", "discussion", "conclusion", "references"
 ]
 
-# --- SESSION STATE INIT ---
+# --- SESSION STATE INIT (must be at the top!) ---
 if 'papers' not in st.session_state:
     st.session_state.papers = []
 if 'edit_paper_id' not in st.session_state:
@@ -24,16 +24,13 @@ if 'logged_in' not in st.session_state:
     st.session_state.username = ''
     st.session_state.role = ''
     st.session_state.name = ''
-if 'just_logged_in' not in st.session_state:
-    st.session_state.just_logged_in = False
 if 'pending_action' not in st.session_state:
     st.session_state.pending_action = None
-if 'pending_paper_id' not in st.session_state:
-    st.session_state.pending_paper_id = None
+if 'ready' not in st.session_state:
+    st.session_state.ready = True  # <-- this prevents rerun bug on first run!
 
-# --- PENDING ACTION HANDLER (the fix!) ---
-if st.session_state.pending_action:
-    # Optionally, use the action/paper_id if you want to extend
+# --- SAFE PENDING ACTION HANDLER ---
+if st.session_state.ready and st.session_state.pending_action:
     st.session_state.pending_action = None
     st.experimental_rerun()
     st.stop()
@@ -102,7 +99,6 @@ def login():
             st.session_state.username = username
             st.session_state.role = user["role"]
             st.session_state.name = user["name"]
-            st.session_state.just_logged_in = True
         else:
             st.error("Invalid username or password.")
 
@@ -112,24 +108,14 @@ def logout():
     st.session_state.role = ''
     st.session_state.name = ''
     st.session_state.edit_paper_id = None
-    st.session_state.just_logged_in = False
     st.session_state.pending_action = None
-    st.session_state.pending_paper_id = None
     st.experimental_rerun()
     st.stop()
 
-# --- LOGIN PAGE / CONTINUE PAGE (No rerun after login!) ---
+# --- LOGIN PAGE ---
 if not st.session_state.logged_in:
     login()
     st.stop()
-
-if st.session_state.just_logged_in:
-    st.success(f"Login successful! Welcome {st.session_state.name}.")
-    cont_btn = st.button("Continue")
-    if cont_btn:
-        st.session_state.just_logged_in = False
-    else:
-        st.stop()
 
 # --- SIDEBAR ---
 st.sidebar.write(f"Logged in as: {st.session_state.name} ({st.session_state.role})")
