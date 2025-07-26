@@ -66,9 +66,9 @@ def logout():
     st.session_state.username = ''
     st.session_state.role = ''
     st.session_state.name = ''
-    st.experimental_rerun()
-    st.stop()
+    # No rerun or stop needed! Let the main code handle page refresh.
 
+# ---- LOGIN CHECK (must be above all dashboards!) ----
 if not st.session_state.logged_in:
     login()
     st.stop()
@@ -76,6 +76,7 @@ if not st.session_state.logged_in:
 st.sidebar.write(f"Logged in as: {st.session_state.name} ({st.session_state.role})")
 if st.sidebar.button("Logout"):
     logout()
+    # The following code will run after logout and will trigger login() and st.stop()
 
 # --- Global Paper Dashboard in Sidebar ---
 st.sidebar.markdown("## 📊 Paper Status Dashboard")
