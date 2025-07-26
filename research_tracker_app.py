@@ -14,7 +14,7 @@ SECTION_HEADERS = [
     "title", "abstract", "introduction", "methods", "results", "discussion", "conclusion", "references"
 ]
 
-# --- SESSION STATE INIT (must be at the top!) ---
+# --- SESSION STATE INIT ---
 if 'papers' not in st.session_state:
     st.session_state.papers = []
 if 'edit_paper_id' not in st.session_state:
@@ -26,11 +26,17 @@ if 'logged_in' not in st.session_state:
     st.session_state.name = ''
 if 'pending_action' not in st.session_state:
     st.session_state.pending_action = None
-if 'ready' not in st.session_state:
-    st.session_state.ready = True  # <-- this prevents rerun bug on first run!
 
-# --- SAFE PENDING ACTION HANDLER ---
-if st.session_state.ready and st.session_state.pending_action:
+# ---- KEY LINE: make sure all keys exist, then activate rerun logic only on 2nd run ----
+if 'safe_for_rerun' not in st.session_state:
+    st.session_state.safe_for_rerun = False
+
+if not st.session_state.safe_for_rerun:
+    st.session_state.safe_for_rerun = True
+    st.stop()
+
+# ---- SAFE RERUN HANDLER ----
+if st.session_state.pending_action:
     st.session_state.pending_action = None
     st.experimental_rerun()
     st.stop()
