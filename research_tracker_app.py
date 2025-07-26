@@ -33,15 +33,15 @@ def fuzzy_section_match(text):
             return sec
     return None
 
-# --- NEW: Section splitting with automatic image extraction/tagging ---
-def split_docx_sections_and_images(docx_file):
+def split_docx_sections_and_images_with_captions(docx_file):
     doc = docx.Document(docx_file)
     text_sections = {}
     current_section = "title"
     buffer = []
-    image_bytes_list = []
-    para_images = {}
+    images = []  # List of dicts: {b64, caption}
     img_counter = 1
+
+    fig_caption_pattern = re.compile(r"^(fig(ure)?\.?\s*\d+[:.\-]?)", re.I)
 
     def flush_buffer():
         nonlocal buffer, current_section
@@ -53,22 +53,36 @@ def split_docx_sections_and_images(docx_file):
                 text_sections[current_section] += joined + "\n"
             buffer.clear()
 
-    for para_idx, para in enumerate(doc.paragraphs):
+    paragraphs = doc.paragraphs
+    n = len(paragraphs)
+
+    para_idx = 0
+    while para_idx < n:
+        para = paragraphs[para_idx]
         para_text = para.text.strip()
         found_img = False
         img_this_para = []
+        img_caption = None
+
+        # Find images in runs
         for run in para.runs:
-            # This is the robust way to check for images in a run:
             if "graphic" in run._element.xml:
-                # For each relationship in the part (usually only one per image)
                 for rel in run.part.rels.values():
                     if "image" in rel.target_ref:
                         image_bytes = rel.target_part.blob
-                        if image_bytes not in image_bytes_list:
-                            image_bytes_list.append(image_bytes)
-                            img_num = len(image_bytes_list)
-                        else:
-                            img_num = image_bytes_list.index(image_bytes) + 1
+                        img_b64 = base64.b64encode(image_bytes).decode()
+                        # Find caption: look before, then after
+                        caption = None
+                        if para_idx > 0:
+                            prev_text = paragraphs[para_idx - 1].text.strip()
+                            if fig_caption_pattern.match(prev_text):
+                                caption = prev_text
+                        if not caption and para_idx + 1 < n:
+                            next_text = paragraphs[para_idx + 1].text.strip()
+                            if fig_caption_pattern.match(next_text):
+                                caption = next_text
+                        images.append({"b64": img_b64, "caption": caption if caption else ""})
+                        img_num = len(images)
                         img_this_para.append(img_num)
                         found_img = True
         found_header = fuzzy_section_match(para_text)
@@ -83,14 +97,16 @@ def split_docx_sections_and_images(docx_file):
         if found_img and not para_text:
             for img_num in img_this_para:
                 buffer.append(f'{{image{img_num}}}')
+            para_idx += 1
             continue
         # If text and image(s), insert tags at the end of the paragraph
         if para_text:
             buffer.append(para_text)
             for img_num in img_this_para:
                 buffer.append(f'{{image{img_num}}}')
+        para_idx += 1
     flush_buffer()
-    return text_sections, image_bytes_list
+    return text_sections, images
 
 # --- SESSION STATE INIT ---
 if 'papers' not in st.session_state: st.session_state.papers = []
@@ -154,7 +170,10 @@ def get_papers_for_faculty(username):
 
 def get_attachment_dict(paper_id):
     if paper_id not in st.session_state.paper_attachments:
-        st.session_state.paper_attachments[paper_id] = {"images": [], "tables": []}
+        st.session_state.paper_attachments[paper_id] = {"images": [], "image_captions": [], "tables": []}
+    # backward compat: always have "image_captions"
+    if "image_captions" not in st.session_state.paper_attachments[paper_id]:
+        st.session_state.paper_attachments[paper_id]["image_captions"] = []
     return st.session_state.paper_attachments[paper_id]
 
 def add_uploaded_images(uploaded_images, attachments):
@@ -164,6 +183,7 @@ def add_uploaded_images(uploaded_images, attachments):
         img_b64 = base64.b64encode(img_bytes).decode()
         if img_b64 not in attachments["images"]:
             attachments["images"].append(img_b64)
+            attachments["image_captions"].append("")
 
 def add_uploaded_table_from_excel(uploaded_excel, attachments):
     df = pd.read_excel(uploaded_excel)
@@ -179,8 +199,12 @@ def add_custom_table(n_rows, n_cols, attachments):
     attachments["tables"].append(html)
 
 def replace_placeholders_with_attachments(content_html, attachments):
+    # Images with captions
     for idx, img_b64 in enumerate(attachments.get("images", [])):
-        img_tag = f'<img src="data:image/png;base64,{img_b64}" style="max-width:100%;">'
+        cap = ""
+        if "image_captions" in attachments and idx < len(attachments["image_captions"]):
+            cap = attachments["image_captions"][idx]
+        img_tag = f'<div style="margin:10px 0;"><img src="data:image/png;base64,{img_b64}" style="max-width:100%;"><br><span style="font-size:14px;">{cap if cap else f"image{idx+1}"}</span></div>'
         content_html = content_html.replace(f'{{image{idx+1}}}', img_tag)
     for idx, table_html in enumerate(attachments.get("tables", [])):
         content_html = content_html.replace(f'{{table{idx+1}}}', table_html)
@@ -214,7 +238,7 @@ if st.session_state.role == "faculty":
     st.title("Faculty Dashboard")
     st.write(f"Welcome, {st.session_state.name}")
 
-    st.info("**Tip:** Upload DOCX with images and/or text. Images will be auto-extracted and placed in the section content as `{image1}`, `{image2}`, etc. To include more images or tables, upload them below and use `{imageN}`, `{tableN}` in your text.")
+    st.info("**Tip:** Upload DOCX with images and/or text. Images will be auto-extracted and placed in the section content as `{image1}`, `{image2}`, etc. Captions like 'Figure 1: ...' (just before or after the image) will be auto-shown. To include more images or tables, upload them below and use `{imageN}`, `{tableN}` in your text.")
 
     papers = get_papers_for_faculty(st.session_state.username)
 
@@ -239,15 +263,13 @@ if st.session_state.role == "faculty":
 
         uploaded_docx = st.file_uploader("Upload DOCX to Auto-Split/Update Sections (text and images)", type=["docx"])
         if uploaded_docx:
-            new_sections, image_bytes_list = split_docx_sections_and_images(uploaded_docx)
-            # Save images to attachments for this paper:
-            for img_bytes in image_bytes_list:
-                img_b64 = base64.b64encode(img_bytes).decode()
-                if img_b64 not in attachments["images"]:
-                    attachments["images"].append(img_b64)
+            new_sections, images = split_docx_sections_and_images_with_captions(uploaded_docx)
+            # Overwrite all auto images and captions with latest DOCX content
+            attachments["images"] = [img_dict["b64"] for img_dict in images]
+            attachments["image_captions"] = [img_dict["caption"] for img_dict in images]
             updated = versioned_update(paper, new_sections, who=st.session_state.name, note="DOCX upload")
             if updated:
-                st.success("Sections updated from DOCX. All changes tracked below (and images auto-inserted).")
+                st.success("Sections updated from DOCX. All changes tracked below (and images auto-inserted with captions).")
             else:
                 st.info("No changes detected from upload.")
 
@@ -271,10 +293,13 @@ if st.session_state.role == "faculty":
             st.success("Table created and attached!")
 
         st.markdown("---")
-        if attachments["images"]:
+        if attachments.get("images"):
             st.write("Attached Images (auto and manual):")
             for idx, img_b64 in enumerate(attachments["images"]):
-                st.image(BytesIO(base64.b64decode(img_b64)), caption=f"image{idx+1}")
+                cap = ""
+                if "image_captions" in attachments and idx < len(attachments["image_captions"]):
+                    cap = attachments["image_captions"][idx]
+                st.image(BytesIO(base64.b64decode(img_b64)), caption=cap if cap else f"image{idx+1}")
         if attachments["tables"]:
             st.write("Attached Tables:")
             for t_idx, table_html in enumerate(attachments["tables"]):
@@ -285,7 +310,6 @@ if st.session_state.role == "faculty":
             changed = False
             for section in SECTION_HEADERS:
                 st.markdown(f"#### {section.title()}")
-                # Replace placeholders for display
                 section_html = replace_placeholders_with_attachments(paper["sections"].get(section, ""), attachments)
                 val = st_quill(
                     key=f"q_{section}_{paper['id']}",
@@ -303,7 +327,6 @@ if st.session_state.role == "faculty":
                     })
                     paper["sections"][section] = val
                     changed = True
-                # Show images/tables in context after each section
                 if section_html.strip():
                     st.markdown("---")
                     st.markdown("##### Preview with images/tables:")
