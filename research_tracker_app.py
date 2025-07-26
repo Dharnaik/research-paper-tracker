@@ -3,9 +3,11 @@ from streamlit_quill import st_quill
 import datetime
 import docx
 
+# --- USERS ---
 users = {
     "admin": {"password": "adminpass", "role": "admin", "name": "Admin"},
     "amit.dharnaik": {"password": "pass7", "role": "faculty", "name": "Prof. Dr. Amit S. Dharnaik"},
+    # Add more users as needed...
 }
 
 SECTION_HEADERS = [
@@ -20,13 +22,6 @@ if 'logged_in' not in st.session_state:
     st.session_state.username = ''
     st.session_state.role = ''
     st.session_state.name = ''
-if 'pending_action' not in st.session_state: st.session_state.pending_action = None
-
-# --- ONLY GUARD RERUN IF PENDING ACTION ---
-if st.session_state.pending_action:
-    st.session_state.pending_action = None
-    st.experimental_rerun()
-    st.stop()
 
 def split_docx_sections(docx_file):
     doc = docx.Document(docx_file)
@@ -98,7 +93,6 @@ def logout():
     st.session_state.role = ''
     st.session_state.name = ''
     st.session_state.edit_paper_id = None
-    st.session_state.pending_action = None
     st.experimental_rerun()
     st.stop()
 
@@ -110,32 +104,18 @@ st.sidebar.write(f"Logged in as: {st.session_state.name} ({st.session_state.role
 if st.sidebar.button("Logout"):
     logout()
 
+def get_papers_for_faculty(username):
+    return [p for p in st.session_state.papers if p['faculty_username'] == username]
+
+# ----- FACULTY DASHBOARD -----
 if st.session_state.role == "faculty":
     st.title("Faculty Dashboard")
     st.write(f"Welcome, {st.session_state.name}")
 
-    def get_papers_for_faculty(username):
-        return [p for p in st.session_state.papers if p['faculty_username'] == username]
-
     papers = get_papers_for_faculty(st.session_state.username)
-    st.subheader("My Papers")
-    for paper in papers:
-        col1, col2, col3 = st.columns([6,2,2])
-        with col1:
-            st.markdown(f"**ID:** {paper['id']} | **Title:** {paper['sections'].get('title','(untitled)')} | Status: {paper['status']}")
-        with col2:
-            if st.button("Edit", key=f"edit_{paper['id']}"):
-                st.session_state.edit_paper_id = paper['id']
-                st.session_state.pending_action = "edit"
-                st.stop()
-        with col3:
-            if st.button("Delete", key=f"delete_{paper['id']}"):
-                st.session_state.papers = [p for p in st.session_state.papers if p['id'] != paper['id']]
-                st.session_state.pending_action = "delete"
-                st.stop()
-        st.markdown("---")
 
-    if st.button("Start New Paper"):
+    # If author just logged in and has no papers, auto-start a new paper
+    if not papers and st.session_state.edit_paper_id is None:
         new_paper = {
             "id": next_paper_id(),
             "faculty_username": st.session_state.username,
@@ -145,15 +125,11 @@ if st.session_state.role == "faculty":
         }
         st.session_state.papers.append(new_paper)
         st.session_state.edit_paper_id = new_paper['id']
-        st.session_state.pending_action = "start"
-        st.stop()
 
-    # ----- Edit/view a paper -----
+    # If author just started new paper (from button), show editor
     if st.session_state.edit_paper_id is not None:
-        paper = next(p for p in papers if p['id'] == st.session_state.edit_paper_id)
+        paper = next(p for p in st.session_state.papers if p['id'] == st.session_state.edit_paper_id)
         st.header(f"Editing Paper: {paper['sections'].get('title','(untitled)')}")
-
-        # Upload DOCX for bulk update
         uploaded_docx = st.file_uploader("Upload DOCX to Auto-Split/Update Sections", type=["docx"])
         if uploaded_docx:
             new_sections = split_docx_sections(uploaded_docx)
@@ -163,7 +139,6 @@ if st.session_state.role == "faculty":
             else:
                 st.info("No changes detected from upload.")
 
-        # Edit each section manually (version tracked)
         with st.form("edit_sections_form"):
             changed = False
             for section in SECTION_HEADERS:
@@ -181,10 +156,7 @@ if st.session_state.role == "faculty":
                     changed = True
             if st.form_submit_button("Save Changes") and changed:
                 st.success("Changes saved and tracked.")
-                st.session_state.pending_action = "save"
-                st.stop()
 
-        # Show change history
         st.markdown("### Change History")
         if paper["history"]:
             for h in reversed(paper["history"]):
@@ -197,5 +169,31 @@ if st.session_state.role == "faculty":
 
         if st.button("Back to My Papers"):
             st.session_state.edit_paper_id = None
-            st.session_state.pending_action = "back"
-            st.stop()
+
+    else:
+        # Show paper list and allow starting/editing
+        st.subheader("My Papers")
+        for paper in papers:
+            col1, col2, col3 = st.columns([6,2,2])
+            with col1:
+                st.markdown(f"**ID:** {paper['id']} | **Title:** {paper['sections'].get('title','(untitled)')} | Status: {paper['status']}")
+            with col2:
+                if st.button("Edit", key=f"edit_{paper['id']}"):
+                    st.session_state.edit_paper_id = paper['id']
+            with col3:
+                if st.button("Delete", key=f"delete_{paper['id']}"):
+                    st.session_state.papers = [p for p in st.session_state.papers if p['id'] != paper['id']]
+                    if paper['id'] == st.session_state.edit_paper_id:
+                        st.session_state.edit_paper_id = None
+            st.markdown("---")
+
+        if st.button("Start New Paper"):
+            new_paper = {
+                "id": next_paper_id(),
+                "faculty_username": st.session_state.username,
+                "sections": {h:"" for h in SECTION_HEADERS},
+                "status": "Draft",
+                "history": []
+            }
+            st.session_state.papers.append(new_paper)
+            st.session_state.edit_paper_id = new_paper['id']
