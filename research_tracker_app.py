@@ -7,7 +7,17 @@ import docx
 # --- USERS ---
 users = {
     "admin": {"password": "adminpass", "role": "admin", "name": "Admin"},
-    # ... your other users ...
+    "yuvaraj.bhirud": {"password": "pass1", "role": "faculty", "name": "Prof. Dr. Yuvaraj L. Bhirud"},
+    "satish.patil": {"password": "pass2", "role": "faculty", "name": "Prof. Dr. Satish B. Patil"},
+    "abhijeet.galatage": {"password": "pass3", "role": "faculty", "name": "Prof. Abhijeet A. Galatage"},
+    "rajshekhar.rathod": {"password": "pass4", "role": "faculty", "name": "Prof. Dr. Rajshekhar G. Rathod"},
+    "avinash.rakh": {"password": "pass5", "role": "faculty", "name": "Prof. Avinash A. Rakh"},
+    "achyut.deshmukh": {"password": "pass6", "role": "faculty", "name": "Prof. Achyut A. Deshmukh"},
+    "amit.dharnaik": {"password": "pass7", "role": "faculty", "name": "Prof. Dr. Amit S. Dharnaik"},
+    "hrishikesh.mulay": {"password": "pass8", "role": "faculty", "name": "Prof. Hrishikesh U Mulay"},
+    "gauri.desai": {"password": "pass9", "role": "faculty", "name": "Prof. Gauri S. Desai"},
+    "bhagyashri.patil": {"password": "pass10", "role": "faculty", "name": "Prof. Bhagyashri D. Patil"},
+    "sagar.sonawane": {"password": "pass11", "role": "faculty", "name": "Prof. Sagar K. Sonawane"},
 }
 
 SECTION_HEADERS = [
@@ -79,8 +89,9 @@ def next_paper_id():
 
 def login():
     st.title("Faculty Research Paper Portal - Login")
-    username = st.text_input("Username")
+    username = st.text_input("Username").strip()  # strip whitespace
     password = st.text_input("Password", type="password")
+    st.write("DEBUG - You entered:", repr(username))
     if st.button("Login"):
         user = users.get(username)
         if user and user["password"] == password:
