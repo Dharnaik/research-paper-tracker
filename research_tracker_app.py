@@ -22,7 +22,8 @@ SECTION_PATTERNS = {
     "materials and methods": r"^(materials? and methods?|methodology|methods?)[:\s]*$",
     "results and discussion": r"^(results and discussion|results & discussion|result and discussion|results|discussion|findings)[:\s]*$",
     "conclusion": r"^(conclusion[s]?)[:\s]*$",
-    "references": r"^(references|bibliography)[:\s]*$",
+    # --- Improved regex for references/bibliography detection with optional numbering and punctuation ---
+    "references": r"^((\d+\.?|[ivxlc]+\.)?\s*)?(references|bibliography)[:\s]*$",
 }
 SECTION_HEADERS = list(SECTION_PATTERNS.keys())
 
@@ -47,6 +48,7 @@ def split_docx_sections(docx_file):
             current_section = found_header
             if current_section not in text_sections:
                 text_sections[current_section] = ""
+            # Only skip if the whole line is the header, else trim just the header
             if re.match(SECTION_PATTERNS[found_header], para_text.strip().lower()):
                 continue
             else:
@@ -179,7 +181,7 @@ if st.session_state.role == "faculty":
     st.title("Faculty Dashboard")
     st.write(f"Welcome, {st.session_state.name}")
 
-    st.info("**Tip:** Please use standard section headings (Title, Abstract, Introduction, Materials and Methods, Results and Discussion, Conclusion, References) in your document. To include images or tables, upload them below and insert `{image1}`, `{table1}` etc. in your text where you want them to appear.")
+    st.info("**Tip:** Please use standard section headings (Title, Abstract, Introduction, Materials and Methods, Results and Discussion, Conclusion, References) in your document. Section headers can be numbered (e.g., '9. References') or include a colon (e.g., 'REFERENCES:'). To include images or tables, upload them below and insert `{image1}`, `{table1}` etc. in your text where you want them to appear.")
 
     papers = get_papers_for_faculty(st.session_state.username)
 
