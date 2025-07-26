@@ -76,7 +76,6 @@ if not st.session_state.logged_in:
 st.sidebar.write(f"Logged in as: {st.session_state.name} ({st.session_state.role})")
 if st.sidebar.button("Logout"):
     logout()
-    # The following code will run after logout and will trigger login() and st.stop()
 
 # --- Global Paper Dashboard in Sidebar ---
 st.sidebar.markdown("## 📊 Paper Status Dashboard")
@@ -93,9 +92,23 @@ else:
             f"**Status:** {paper['status']}\n"
             f"**Reviewer(s):** {assigned_reviewers}"
         )
-        if "filepath" in paper:
+        # Only show download for admin or (reviewer assigned to this paper)
+        show_download = False
+        if st.session_state.role == "admin":
+            show_download = True
+        elif st.session_state.role == "reviewer":
+            # Only allow assigned reviewers to download
+            if st.session_state.username in reviewers:
+                show_download = True
+        # No download for faculty in sidebar
+        if show_download and "filepath" in paper:
             with open(paper["filepath"], "rb") as f:
-                st.sidebar.download_button("⬇️ Download", f, file_name=paper["filepath"].split("/")[-1], key=f"sidebar_down_{paper['id']}")
+                st.sidebar.download_button(
+                    "⬇️ Download",
+                    f,
+                    file_name=paper["filepath"].split("/")[-1],
+                    key=f"sidebar_down_{paper['id']}_{st.session_state.username}"
+                )
         st.sidebar.markdown("---")
 
 def get_papers_for_faculty(username):
