@@ -307,10 +307,14 @@ elif st.session_state.role == "admin":
             st.success(f"Reviewer '{reviewer_to_delete}' deleted.")
             st.experimental_rerun()
 
-    # --- Assign Reviewer to Paper Section ---
+    # --- Assign Reviewer to Paper Section (always visible) ---
     st.subheader("Assign Reviewers to Papers")
     paper_titles = [f"{p['id']} - {p['title']}" for p in st.session_state.papers]
-    if paper_titles and existing_reviewers:
+    if not existing_reviewers:
+        st.info("No reviewers available. Please create at least one reviewer account.")
+    elif not paper_titles:
+        st.info("No papers available. Please wait for faculty to submit a paper.")
+    else:
         selected_paper_str = st.selectbox("Select Paper", paper_titles, key="assign_paper_select")
         selected_reviewer = st.selectbox("Select Reviewer", existing_reviewers, key="assign_reviewer_select")
         assign_btn = st.button("Assign Reviewer")
