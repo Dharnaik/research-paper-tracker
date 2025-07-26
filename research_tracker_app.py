@@ -3,11 +3,9 @@ from streamlit_quill import st_quill
 import datetime
 import docx
 
-# --- USERS ---
 users = {
     "admin": {"password": "adminpass", "role": "admin", "name": "Admin"},
     "amit.dharnaik": {"password": "pass7", "role": "faculty", "name": "Prof. Dr. Amit S. Dharnaik"},
-    # Add more users as needed...
 }
 
 SECTION_HEADERS = [
@@ -15,32 +13,21 @@ SECTION_HEADERS = [
 ]
 
 # --- SESSION STATE INIT ---
-if 'papers' not in st.session_state:
-    st.session_state.papers = []
-if 'edit_paper_id' not in st.session_state:
-    st.session_state.edit_paper_id = None
+if 'papers' not in st.session_state: st.session_state.papers = []
+if 'edit_paper_id' not in st.session_state: st.session_state.edit_paper_id = None
 if 'logged_in' not in st.session_state:
     st.session_state.logged_in = False
     st.session_state.username = ''
     st.session_state.role = ''
     st.session_state.name = ''
-if 'pending_action' not in st.session_state:
-    st.session_state.pending_action = None
-# FINAL GUARD:
-if 'init_complete' not in st.session_state:
-    st.session_state.init_complete = False
+if 'pending_action' not in st.session_state: st.session_state.pending_action = None
 
-if not st.session_state.init_complete:
-    st.session_state.init_complete = True
-    st.stop()
-
-# --- PENDING ACTION HANDLER ---
+# --- ONLY GUARD RERUN IF PENDING ACTION ---
 if st.session_state.pending_action:
     st.session_state.pending_action = None
     st.experimental_rerun()
     st.stop()
 
-# --- DOCX SPLIT & VERSION TRACK ---
 def split_docx_sections(docx_file):
     doc = docx.Document(docx_file)
     text_sections = {}
@@ -48,8 +35,7 @@ def split_docx_sections(docx_file):
     text_sections[current_section] = ""
     for para in doc.paragraphs:
         para_text = para.text.strip()
-        if not para_text:
-            continue
+        if not para_text: continue
         found_header = None
         for h in SECTION_HEADERS:
             if para_text.lower().startswith(h):
@@ -92,7 +78,6 @@ def next_paper_id():
     else:
         return 1
 
-# --- LOGIN/LOGOUT ---
 def login():
     st.title("Faculty Research Paper Portal - Login")
     username = st.text_input("Username").strip()
@@ -114,21 +99,17 @@ def logout():
     st.session_state.name = ''
     st.session_state.edit_paper_id = None
     st.session_state.pending_action = None
-    st.session_state.init_complete = False  # <-- re-initialize guard!
     st.experimental_rerun()
     st.stop()
 
-# --- LOGIN PAGE ---
 if not st.session_state.logged_in:
     login()
     st.stop()
 
-# --- SIDEBAR ---
 st.sidebar.write(f"Logged in as: {st.session_state.name} ({st.session_state.role})")
 if st.sidebar.button("Logout"):
     logout()
 
-# --- FACULTY DASHBOARD ---
 if st.session_state.role == "faculty":
     st.title("Faculty Dashboard")
     st.write(f"Welcome, {st.session_state.name}")
