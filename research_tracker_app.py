@@ -7,7 +7,7 @@ import docx
 users = {
     "admin": {"password": "adminpass", "role": "admin", "name": "Admin"},
     "amit.dharnaik": {"password": "pass7", "role": "faculty", "name": "Prof. Dr. Amit S. Dharnaik"},
-    # ...add others as needed...
+    # ...add more users as needed...
 }
 
 SECTION_HEADERS = [
@@ -26,6 +26,17 @@ if 'logged_in' not in st.session_state:
     st.session_state.name = ''
 if 'just_logged_in' not in st.session_state:
     st.session_state.just_logged_in = False
+if 'pending_action' not in st.session_state:
+    st.session_state.pending_action = None
+if 'pending_paper_id' not in st.session_state:
+    st.session_state.pending_paper_id = None
+
+# --- PENDING ACTION HANDLER (the fix!) ---
+if st.session_state.pending_action:
+    # Optionally, use the action/paper_id if you want to extend
+    st.session_state.pending_action = None
+    st.experimental_rerun()
+    st.stop()
 
 # --- DOCX SPLIT & VERSION TRACK ---
 def split_docx_sections(docx_file):
@@ -91,7 +102,7 @@ def login():
             st.session_state.username = username
             st.session_state.role = user["role"]
             st.session_state.name = user["name"]
-            st.session_state.just_logged_in = True  # <-- DO NOT rerun!
+            st.session_state.just_logged_in = True
         else:
             st.error("Invalid username or password.")
 
@@ -102,8 +113,12 @@ def logout():
     st.session_state.name = ''
     st.session_state.edit_paper_id = None
     st.session_state.just_logged_in = False
+    st.session_state.pending_action = None
+    st.session_state.pending_paper_id = None
+    st.experimental_rerun()
+    st.stop()
 
-# --- LOGIN PAGE / CONTINUE PAGE (No rerun!) ---
+# --- LOGIN PAGE / CONTINUE PAGE (No rerun after login!) ---
 if not st.session_state.logged_in:
     login()
     st.stop()
@@ -120,8 +135,6 @@ if st.session_state.just_logged_in:
 st.sidebar.write(f"Logged in as: {st.session_state.name} ({st.session_state.role})")
 if st.sidebar.button("Logout"):
     logout()
-    st.experimental_rerun()
-    st.stop()
 
 # --- FACULTY DASHBOARD ---
 if st.session_state.role == "faculty":
@@ -140,12 +153,12 @@ if st.session_state.role == "faculty":
         with col2:
             if st.button("Edit", key=f"edit_{paper['id']}"):
                 st.session_state.edit_paper_id = paper['id']
-                st.experimental_rerun()
+                st.session_state.pending_action = "edit"
                 st.stop()
         with col3:
             if st.button("Delete", key=f"delete_{paper['id']}"):
                 st.session_state.papers = [p for p in st.session_state.papers if p['id'] != paper['id']]
-                st.experimental_rerun()
+                st.session_state.pending_action = "delete"
                 st.stop()
         st.markdown("---")
 
@@ -159,7 +172,7 @@ if st.session_state.role == "faculty":
         }
         st.session_state.papers.append(new_paper)
         st.session_state.edit_paper_id = new_paper['id']
-        st.experimental_rerun()
+        st.session_state.pending_action = "start"
         st.stop()
 
     # ----- Edit/view a paper -----
@@ -195,7 +208,7 @@ if st.session_state.role == "faculty":
                     changed = True
             if st.form_submit_button("Save Changes") and changed:
                 st.success("Changes saved and tracked.")
-                st.experimental_rerun()
+                st.session_state.pending_action = "save"
                 st.stop()
 
         # Show change history
@@ -211,5 +224,5 @@ if st.session_state.role == "faculty":
 
         if st.button("Back to My Papers"):
             st.session_state.edit_paper_id = None
-            st.experimental_rerun()
+            st.session_state.pending_action = "back"
             st.stop()
