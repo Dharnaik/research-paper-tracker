@@ -7,7 +7,7 @@ import docx
 users = {
     "admin": {"password": "adminpass", "role": "admin", "name": "Admin"},
     "amit.dharnaik": {"password": "pass7", "role": "faculty", "name": "Prof. Dr. Amit S. Dharnaik"},
-    # ... add others as needed ...
+    # ...add others as needed...
 }
 
 SECTION_HEADERS = [
@@ -26,10 +26,6 @@ if 'logged_in' not in st.session_state:
     st.session_state.name = ''
 if 'just_logged_in' not in st.session_state:
     st.session_state.just_logged_in = False
-if 'pending_action' not in st.session_state:
-    st.session_state.pending_action = None
-if 'pending_paper_id' not in st.session_state:
-    st.session_state.pending_paper_id = None
 
 # --- DOCX SPLIT & VERSION TRACK ---
 def split_docx_sections(docx_file):
@@ -95,7 +91,7 @@ def login():
             st.session_state.username = username
             st.session_state.role = user["role"]
             st.session_state.name = user["name"]
-            st.session_state.just_logged_in = True  # <--- show continue page!
+            st.session_state.just_logged_in = True  # <-- DO NOT rerun!
         else:
             st.error("Invalid username or password.")
 
@@ -106,21 +102,19 @@ def logout():
     st.session_state.name = ''
     st.session_state.edit_paper_id = None
     st.session_state.just_logged_in = False
-    st.session_state.pending_action = None
-    st.session_state.pending_paper_id = None
 
-# --- LOGIN FLOW ---
+# --- LOGIN PAGE / CONTINUE PAGE (No rerun!) ---
 if not st.session_state.logged_in:
     login()
     st.stop()
 
-# --- CONTINUE PAGE (No rerun, solves the error) ---
 if st.session_state.just_logged_in:
     st.success(f"Login successful! Welcome {st.session_state.name}.")
-    if st.button("Continue"):
+    cont_btn = st.button("Continue")
+    if cont_btn:
         st.session_state.just_logged_in = False
-        st.experimental_rerun()
-    st.stop()
+    else:
+        st.stop()
 
 # --- SIDEBAR ---
 st.sidebar.write(f"Logged in as: {st.session_state.name} ({st.session_state.role})")
