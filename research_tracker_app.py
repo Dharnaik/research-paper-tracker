@@ -10,8 +10,9 @@ users = {
     # Add more users as needed...
 }
 
+# Only 1 section for "Results and Discussion"
 SECTION_HEADERS = [
-    "title", "abstract", "introduction", "methods", "results", "discussion", "conclusion", "references"
+    "title", "abstract", "introduction", "methods", "results and discussion", "conclusion", "references"
 ]
 
 # --- SESSION STATE INIT ---
