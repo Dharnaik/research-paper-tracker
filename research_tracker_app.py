@@ -3,27 +3,18 @@ from streamlit_quill import st_quill
 import datetime
 import docx
 
-# --- USERS (Define BEFORE anything else uses it) ---
+# --- USERS ---
 users = {
     "admin": {"password": "adminpass", "role": "admin", "name": "Admin"},
-    "yuvaraj.bhirud": {"password": "pass1", "role": "faculty", "name": "Prof. Dr. Yuvaraj L. Bhirud"},
-    "satish.patil": {"password": "pass2", "role": "faculty", "name": "Prof. Dr. Satish B. Patil"},
-    "abhijeet.galatage": {"password": "pass3", "role": "faculty", "name": "Prof. Abhijeet A. Galatage"},
-    "rajshekhar.rathod": {"password": "pass4", "role": "faculty", "name": "Prof. Dr. Rajshekhar G. Rathod"},
-    "avinash.rakh": {"password": "pass5", "role": "faculty", "name": "Prof. Avinash A. Rakh"},
-    "achyut.deshmukh": {"password": "pass6", "role": "faculty", "name": "Prof. Achyut A. Deshmukh"},
     "amit.dharnaik": {"password": "pass7", "role": "faculty", "name": "Prof. Dr. Amit S. Dharnaik"},
-    "hrishikesh.mulay": {"password": "pass8", "role": "faculty", "name": "Prof. Hrishikesh U Mulay"},
-    "gauri.desai": {"password": "pass9", "role": "faculty", "name": "Prof. Gauri S. Desai"},
-    "bhagyashri.patil": {"password": "pass10", "role": "faculty", "name": "Prof. Bhagyashri D. Patil"},
-    "sagar.sonawane": {"password": "pass11", "role": "faculty", "name": "Prof. Sagar K. Sonawane"},
+    # ... other users
 }
 
 SECTION_HEADERS = [
     "title", "abstract", "introduction", "methods", "results", "discussion", "conclusion", "references"
 ]
 
-# --- SESSION STATE INIT ---
+# --- SESSION STATE INIT (MUST BE FIRST) ---
 if 'papers' not in st.session_state:
     st.session_state.papers = []
 if 'edit_paper_id' not in st.session_state:
@@ -35,14 +26,19 @@ if 'logged_in' not in st.session_state:
     st.session_state.name = ''
 if 'rerun_flag' not in st.session_state:
     st.session_state.rerun_flag = None
+if 'ready' not in st.session_state:
+    st.session_state.ready = True  # Only set this after session state has initialized once!
 
-# --- SAFE RERUN HANDLER AT VERY TOP ---
-if st.session_state.rerun_flag:
+# ---- SAFE RERUN HANDLER (GUARDED) ----
+# Only allow rerun after session state is definitely initialized!
+if st.session_state.ready and st.session_state.rerun_flag:
+    flag = st.session_state.rerun_flag
     st.session_state.rerun_flag = None
     st.experimental_rerun()
     st.stop()
 
-# --- DOCX SPLIT & VERSION TRACK ---
+# ---- Rest of your functions (as before) ----
+
 def split_docx_sections(docx_file):
     doc = docx.Document(docx_file)
     text_sections = {}
@@ -94,7 +90,6 @@ def next_paper_id():
     else:
         return 1
 
-# --- LOGIN/LOGOUT (NO RERUN, JUST SET FLAG) ---
 def login():
     st.title("Faculty Research Paper Portal - Login")
     username = st.text_input("Username").strip()
